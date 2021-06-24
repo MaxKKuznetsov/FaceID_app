@@ -31,6 +31,34 @@ class SetSettings():
         self.out_video_width, self.out_video_height = 640, 480
 
 
+class Srceen:
+    '''
+    OpenCV frame
+    '''
+
+    def __init__(self, frame, state):
+        self.frame = frame
+        self.state = state
+        self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
+
+        self.frame = self.draw_text(self.state, (200, 200), (255, 0, 0))
+
+    def draw_text(self, text, coord, color):
+
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = coord
+        # fontScale
+        fontScale = 1
+        # Line thickness of 2 px
+        thickness = 2
+
+        img_out = cv2.putText(self.frame, text, org, font,
+                   fontScale, color, thickness, cv2.LINE_AA)
+
+        return img_out
+
 
 class VideoThread(QThread, SetSettings):
     '''
@@ -39,17 +67,15 @@ class VideoThread(QThread, SetSettings):
 
     change_pixmap_signal = pyqtSignal(np.ndarray)
 
-    def __init__(self):
+    def __init__(self, mController, mModel):
         super().__init__()
 
         #self._state = state
         #self.db_from_file = lib.DB_in_file()
 
-    def frame_processing(self, cv_img_in):
+        self.mModel = mModel
+        self.mController = mController
 
-        cv_img_out = cv_img_in
-
-        return cv_img_out
 
     def run(self):
 
@@ -61,7 +87,10 @@ class VideoThread(QThread, SetSettings):
 
             if ret:
 
-                cv_img_out = self.frame_processing(cv_img_in)
+                #print(self.mModel._state)
+
+                screen = Srceen(cv_img_in, self.mModel._state)
+                cv_img_out = screen.frame
 
                 # emit frame to show
                 self.change_pixmap_signal.emit(cv_img_out)
@@ -89,12 +118,14 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         self.mController = inController
         self.mModel = inModel
 
+        self.set_window()
+
         # подключаем визуальное представление
         self.initUI()
 
-        self.set_window()
+        self.btn_reg = self.init_registration_button()
 
-        self.btn_reg = self.registration_button()
+        #self.init_text_on_screen_app('test')
 
         self.modelIsChanged()
 
@@ -109,11 +140,28 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
 
         self.app_text, self.button_set = self.mModel.change_state
 
-        self.setTestText(self.app_text)
+        #self.text_on_screen_app(self.app_text)
         self.upgrade_button()
+        #self.setTestText(self.app_text)
 
 
-    def registration_button(self):
+
+    ### text ###
+    def init_text_on_screen_app(self, text):
+        # create a text label
+        #self.layout = QVBoxLayout()
+        #self.label = QLabel(text)
+        #self.layout.addWidget(self.label)
+        #self.setLayout(self.layout)
+
+        ####
+        self.image_label.setText(text)
+
+    def upgrade_text_on_screen_app(self, text):
+        self.image_label.setText(text)
+
+    ###btn###
+    def init_registration_button(self):
         btn_reg = QPushButton(self)
         #btn_reg.setText('')
         btn_reg.move(200, 370)
@@ -124,13 +172,9 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
     def upgrade_button(self):
 
         if self.button_set['button_show_flag']:
-
             self.btn_reg.setText(self.button_set['button_text'])
+    #########
 
-
-    def setTestText(self, data):
-        strData = str(data)
-        self.image_label.setText(strData)
 
 
     def set_window(self):
@@ -149,10 +193,13 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         self.init_thread()
 
 
+
+
+
     def init_thread(self):
 
         # create the video capture thread
-        self.thread = VideoThread()
+        self.thread = VideoThread(self.mController, self.mModel)
 
         # connect its signal to the update_image slot
         self.thread.change_pixmap_signal.connect(self.update_image)

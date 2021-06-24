@@ -68,3 +68,17 @@ class Model:
     def notifyObservers(self):
         for x in self._mObservers:
             x.modelIsChanged()
+
+class Frame:
+    '''
+    Open CV image: one frame from
+    '''
+
+    pass
+
+class Face:
+    '''
+    Face detected
+    '''
+
+    pass
