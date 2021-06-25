@@ -21,11 +21,11 @@ class Controller:
         # Load ui interface class, used to set ui
         self.mView = View(self, self.mModel)
 
-        self.mView.btn_reg.clicked.connect(self.btn_reg_clicked)
+        self.mView.btn_reg.clicked.connect(self.controler_change_state)
 
         self.mView.show()
 
-    def btn_reg_clicked(self):
+    def controler_change_state(self):
         # Use the function of model to process data
         if self.state_ID < len(self.state_list) - 1:
             self.state_ID += 1

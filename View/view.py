@@ -12,6 +12,7 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread, QRect
 from Utility.MainWinObserver import MainWinObserver
 from Utility.MainWinMeta import MainWinMeta
 
+from Model.facial_image_processing import FacialImageProcessing
 
 
 class SetSettings():
@@ -41,7 +42,29 @@ class Srceen:
         self.state = state
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
-        self.frame = self.draw_text(self.state, (200, 200), (255, 0, 0))
+
+        self.frame_transfer()
+
+    def frame_transfer(self):
+
+        if self.state == 'state1':
+
+            self.box_color = (255, 0, 0)
+
+            self.frame = self.draw_text(self.state, (200, 100), self.box_color)
+
+
+        elif self.state == 'state2':
+
+            self.box_color = (0, 0, 255)
+
+            self.ellipse_par()
+            self.draw_ellipse()
+            self.blur()
+
+            self.frame = self.draw_text(self.state, (200, 100), self.box_color)
+
+
 
     def draw_text(self, text, coord, color):
 
@@ -59,6 +82,59 @@ class Srceen:
 
         return img_out
 
+    def ellipse_par(self):
+        self.center_coordinates = (self.frame_width//2, self.frame_height//2)
+        self.axesLength = (100, 120)
+        self.angle, self.startAngle, self.endAngle = 0, 0, 360
+
+        # Red color in BGR
+        self.color = (0, 255, 0)
+        # Line thickness of 5 px
+        self.thickness = 1
+
+
+    def draw_ellipse(self):
+
+        cv2.ellipse(self.frame, self.center_coordinates, self.axesLength,
+                    self.angle, self.startAngle, self.endAngle, self.color, self.thickness)
+
+    def blur(self):
+
+        blurred_img = cv2.GaussianBlur(self.frame, (21, 21), 0)
+
+        mask = np.zeros((self.frame_height, self.frame_width, 3), dtype=np.uint8)
+        mask = cv2.ellipse(mask,
+                           self.center_coordinates, self.axesLength, self.angle, self.startAngle, self.endAngle,
+                           (255, 255, 255), -1)
+
+        self.frame = np.where(mask == np.array([255, 255, 255]), self.frame, blurred_img)
+
+    def draw_faceboxes(self, faces, box_color):
+
+        for face in faces:
+            self.draw_facebox(face, box_color)
+
+
+    # draw an image with detected objects
+    def draw_facebox(self, face, box_color):
+
+        thickness = 2
+
+        # get coordinates
+        x, y, width, height = face['box']
+
+        start_point = (x, y)
+        end_point = (x + width, y + height)
+
+        face_label = face['face_label']
+
+        # draw the box around face
+        self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
+
+        # Draw a label with a name below the face
+        cv2.rectangle(self.frame, (x, y + height - 35), (x + width, y + height), box_color, cv2.FILLED)
+        cv2.putText(self.frame, face_label, (x + 6, y + height - 6), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 0, 0), 1)
+
 
 class VideoThread(QThread, SetSettings):
     '''
@@ -74,7 +150,7 @@ class VideoThread(QThread, SetSettings):
         #self.db_from_file = lib.DB_in_file()
 
         self.mModel = mModel
-        self.mController = mController
+        #self.mController = mController
 
 
     def run(self):
@@ -86,10 +162,19 @@ class VideoThread(QThread, SetSettings):
             ret, cv_img_in = cap.read()
 
             if ret:
+                state = self.mModel._state
 
                 #print(self.mModel._state)
+                facal_processing = FacialImageProcessing(cv_img_in)
+                screen = Srceen(cv_img_in, state)
 
-                screen = Srceen(cv_img_in, self.mModel._state)
+                #faces_MTCNN = facal_processing.detect_face_MTCNN()
+                faces_FaceRecognition = facal_processing.detect_face_FaceRecognition()
+
+                #screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
+                screen.draw_faceboxes(faces_FaceRecognition, (0, 255, 0))
+
+
                 cv_img_out = screen.frame
 
                 # emit frame to show

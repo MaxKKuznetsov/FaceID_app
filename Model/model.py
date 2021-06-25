@@ -69,16 +69,4 @@ class Model:
         for x in self._mObservers:
             x.modelIsChanged()
 
-class Frame:
-    '''
-    Open CV image: one frame from
-    '''
 
-    pass
-
-class Face:
-    '''
-    Face detected
-    '''
-
-    pass
