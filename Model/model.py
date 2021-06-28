@@ -12,10 +12,10 @@ class Model:
 
     def __init__(self):
 
-        self._state = 'state1'
+        self._state = 'BackgroundMode'
 
-        self._buttot_set = {'button_show_flag': True,
-                            'button_text': 'State1',
+        self._button_set = {'button_show_flag': True,
+                            'button_text': 'Add new user',
                             'button_location': [],
                             'button_size': [],
                             }
@@ -23,22 +23,22 @@ class Model:
         # список наблюдателей
         self._mObservers = []
 
-
     def return_button_set(self, InState):
 
-        if InState == 'state1':
+        if (InState == 'BackgroundMode') or (InState == 'FaceIdentificationMode'):
             self._buttot_set = {'button_show_flag': True,
-                                'button_text': 'State1',
+                                'button_text': 'Add new user',
                                 'button_location': (),
                                 'button_size': (),
                                 }
 
-        elif InState == 'state2':
+        elif (InState == 'UserRegistrationMode') or (InState == 'GreetingsMode'):
             self._buttot_set = {'button_show_flag': True,
-                                'button_text': 'State2',
+                                'button_text': 'EXIT',
                                 'button_location': (),
                                 'button_size': (),
                                 }
+
         else:
             self._buttot_set = {'button_show_flag': False,
                                 'button_text': '0',
@@ -49,7 +49,7 @@ class Model:
 
     @property
     def change_state(self):
-        return self._state, self._buttot_set
+        return self._state, self._button_set
 
     @change_state.setter
     def change_state(self, InState):

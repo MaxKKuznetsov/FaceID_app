@@ -76,7 +76,26 @@ class FrameQualityEstimator:
         return s[0]
 
 class Face:
-    pass
+    '''
+    object face
+    MTCNN:
+        [{'box': [382, 186, 79, 108],
+        'confidence': 0.9966862797737122,
+        'keypoints': {'left_eye': (424, 228),
+        'right_eye': (453, 224), 'nose': (452, 249),
+        'mouth_left': (428, 272), 'mouth_right': (452, 268)}}]
+    '''
+
+    def __init__(self):
+        self.box = []
+        self.confidence = 0
+        self.keypoints = {}
+        self.face_label = ''
+        self.userID = 0
+        self.face_img = []
+        self.face_encoding = []
+
+
 
 class FacialImageProcessing:
     '''
@@ -93,18 +112,17 @@ class FacialImageProcessing:
         self.known_face_metadata = user_data.known_face_metadata
 
 
-
-    def resize_img_in(self):
+    def resize_img_in(self, frame, resize_coef):
 
         # Resize frame to 1/4 size for faster face recognition processing
-        small_frame = cv2.resize(self.frame, (0, 0), fx=0.25, fy=0.25)
+        small_frame = cv2.resize(frame, (0, 0), fx=resize_coef, fy=resize_coef)
 
         # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
         rgb_small_frame = small_frame[:, :, ::-1]
 
         return rgb_small_frame
 
-    def detect_face_FaceRecognition(self):
+    def detect_face_FaceRecognition(self, resize_coef):
         '''
         face detection from face recognition, dlib, openCV
         :return:
@@ -115,21 +133,32 @@ class FacialImageProcessing:
         'mouth_left': (428, 272), 'mouth_right': (452, 268)}}]
         '''
 
-        rgb_small_frame = self.frame
-        #rgb_small_frame = self.resize_img_in()
+        if resize_coef: #faster
+            rgb_small_frame = self.resize_img_in(self.frame, 1/resize_coef)  # (120, 160, 3)
+        else: #better quality
+            rgb_small_frame = self.frame                      #(480, 640, 3)
+
+
+        #print(rgb_small_frame.shape)
+
+        #cv2.imshow('image', rgb_small_frame)
+        #cv2.waitKey(0)
 
 
         # Find all the face locations and face encodings in the current frame of video
         face_boxes = face_recognition.face_locations(rgb_small_frame)
 
-        faces = self.face_FaceRecognition2face_MTCNN(face_boxes)
+        #print('face_boxes:')
+        #print(face_boxes)
 
-        face_label = 'FaceRecognition'
+        faces = self.face_FaceRecognition2face_MTCNN(face_boxes, resize_coef=resize_coef)
+
+        face_label = 'FaceRec'
         faces = self.add_face_label(faces, face_label)
 
         return faces
 
-    def face_FaceRecognition2face_MTCNN(self, face_boxes):
+    def face_FaceRecognition2face_MTCNN(self, face_boxes, resize_coef):
         '''
         :param face_boxes:
         [(223, 509, 331, 402)] - top, right, bottom, left
@@ -147,17 +176,30 @@ class FacialImageProcessing:
 
         faces = []
         for face_box in face_boxes:
-            faces.append({'box': [face_box[3], face_box[0],
-                                  face_box[1] - face_box[3],
-                                  face_box[2] - face_box[0]
-                                  ],
-                          'face_label': 'FaceRecognition'
-                          })
+
+            top, right, bottom, left = face_box
+
+            # Scale back up face locations since the frame we detected in was scaled to 1/4 size
+            if resize_coef:
+                top *= resize_coef
+                right *= resize_coef
+                bottom *= resize_coef
+                left *= resize_coef
+
+            faces.append({'box': [left, top,
+                                right - left,
+                                bottom - top
+                                ]
+                            })
+
+            #faces.append({'box': [face_box[3], face_box[0],
+            #                      face_box[1] - face_box[3],
+            #                      face_box[2] - face_box[0]
+            #                      ],
+            #              'face_label': 'FaceRecognition'
+            #              })
 
         return faces
-
-
-
 
     def transfer_img(self):
 
@@ -210,5 +252,15 @@ class FacialImageProcessing:
             faces_out.append(face)
 
         return faces_out
+
+    def fase_size_test(self, faces, min_face_size):
+
+        for face in faces:
+            x, y, width, height = face['box']
+
+            if width * height > min_face_size:
+                return True
+
+        return False
 
 

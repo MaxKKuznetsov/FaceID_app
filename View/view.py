@@ -47,14 +47,19 @@ class Srceen:
 
     def frame_transfer(self):
 
-        if self.state == 'state1':
+        if self.state == 'BackgroundMode':
 
             self.box_color = (255, 0, 0)
 
-            self.frame = self.draw_text(self.state, (200, 100), self.box_color)
+            #self.frame = self.drow_boxes_around_faces(faces, self.box_color)
+
+        elif self.state == 'FaceIdentificationMode':
+            self.box_color = (255, 0, 0)
+
+            #self.frame = self.drow_boxes_around_faces(faces, self.box_color)
 
 
-        elif self.state == 'state2':
+        elif self.state == 'UserRegistrationMode':
 
             self.box_color = (0, 0, 255)
 
@@ -62,8 +67,19 @@ class Srceen:
             self.draw_ellipse()
             self.blur()
 
-            self.frame = self.draw_text(self.state, (200, 100), self.box_color)
+        elif self.state == 'UserRegistrationMode':
 
+            self.box_color = (0, 0, 255)
+
+            self.ellipse_par()
+            self.draw_ellipse()
+            self.blur()
+
+
+        else:
+            pass
+
+        self.frame = self.draw_text(self.state, (150, 30), self.box_color)
 
 
     def draw_text(self, text, coord, color):
@@ -112,6 +128,7 @@ class Srceen:
     def draw_faceboxes(self, faces, box_color):
 
         for face in faces:
+            #print(face)
             self.draw_facebox(face, box_color)
 
 
@@ -169,16 +186,17 @@ class VideoThread(QThread, SetSettings):
                 screen = Srceen(cv_img_in, state)
 
                 #faces_MTCNN = facal_processing.detect_face_MTCNN()
-                faces_FaceRecognition = facal_processing.detect_face_FaceRecognition()
+                faces_FaceRecognition = facal_processing.detect_face_FaceRecognition(resize_coef=2)
 
                 #screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
-                screen.draw_faceboxes(faces_FaceRecognition, (0, 255, 0))
-
+                screen.draw_faceboxes(faces_FaceRecognition, (255, 0, 0))
 
                 cv_img_out = screen.frame
 
                 # emit frame to show
                 self.change_pixmap_signal.emit(cv_img_out)
+
+                #if facal_processing.fase_size_test(self, faces_FaceRecognition, min_face_size=2000):
 
             else:
                 print("Can't receive frame (stream end?). Exiting ...")
