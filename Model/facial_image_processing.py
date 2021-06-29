@@ -262,4 +262,7 @@ class FacialImageProcessing:
 
         return False
 
+    def face_identification(self):
+        return []
+
 

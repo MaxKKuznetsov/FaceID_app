@@ -169,6 +169,8 @@ class VideoThread(QThread, SetSettings):
                 faces = facal_processing.faces
 
                 if state == 'UserRegistrationMode':
+                    # face_identification
+                    metadatas = facal_processing.face_identification()
 
 
 
