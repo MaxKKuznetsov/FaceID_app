@@ -15,13 +15,14 @@ from Utility.MainWinMeta import MainWinMeta
 from Model.facial_image_processing import FacialImageProcessing
 
 
-class SetSettings():
+class SetSettings:
     '''
     screen settings
     '''
+
     def __init__(self):
         self.screen_settings()
-        #self.saved_video_settings()
+        # self.saved_video_settings()
 
     def screen_settings(self):
         self.display_width, self.display_height = 640, 480
@@ -42,7 +43,6 @@ class Srceen:
         self.state = state
         self.faces = faces
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
-
 
     def frame_transfer(self):
 
@@ -69,9 +69,6 @@ class Srceen:
             self.frame = self.draw_text('Look at the camera', (170, 30), (0, 0, 255))
 
 
-
-
-
     def draw_text(self, text, coord, color):
 
         # font
@@ -84,12 +81,12 @@ class Srceen:
         thickness = 2
 
         img_out = cv2.putText(self.frame, text, org, font,
-                   fontScale, color, thickness, cv2.LINE_AA)
+                              fontScale, color, thickness, cv2.LINE_AA)
 
         return img_out
 
     def ellipse_par(self):
-        self.center_coordinates = (self.frame_width//2, self.frame_height//2)
+        self.center_coordinates = (self.frame_width // 2, self.frame_height // 2)
         self.axesLength = (100, 120)
         self.angle, self.startAngle, self.endAngle = 0, 0, 360
 
@@ -97,7 +94,6 @@ class Srceen:
         self.color = (0, 255, 0)
         # Line thickness of 5 px
         self.thickness = 1
-
 
     def draw_ellipse(self):
 
@@ -118,9 +114,8 @@ class Srceen:
     def draw_faceboxes(self, faces, box_color):
 
         for face in faces:
-            #print(face)
+            # print(face)
             self.draw_facebox(face, box_color)
-
 
     # draw an image with detected objects
     def draw_facebox(self, face, box_color):
@@ -139,7 +134,7 @@ class Srceen:
         self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
 
         # Draw a label with a name below the face
-        cv2.rectangle(self.frame, (x-1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
+        cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
         cv2.putText(self.frame, face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 1)
 
 
@@ -157,7 +152,6 @@ class VideoThread(QThread, SetSettings):
         self.mModel = mModel
         self.mController = mController
 
-
     def run(self):
 
         # capture from web cam
@@ -169,13 +163,19 @@ class VideoThread(QThread, SetSettings):
             if ret:
                 state = self.mModel.state
 
+                ### Facial Image Processing
                 facal_processing = FacialImageProcessing(cv_img_in)
-                #faces_MTCNN = facal_processing.detect_face_MTCNN()
+                # faces_MTCNN = facal_processing.detect_face_MTCNN()
                 faces = facal_processing.faces
 
+                if state == 'UserRegistrationMode':
+
+
+
+                ### Visualisation ###
                 screen = Srceen(cv_img_in, state, faces)
-                #screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
-                #screen.draw_faceboxes(faces, (255, 0, 0))
+                # screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
+                # screen.draw_faceboxes(faces, (255, 0, 0))
                 screen.frame_transfer()
 
                 cv_img_out = screen.frame
@@ -183,7 +183,7 @@ class VideoThread(QThread, SetSettings):
                 # emit frame to show
                 self.change_pixmap_signal.emit(cv_img_out)
 
-                #emit fase size
+                # emit fase size
                 self.check_face_size.emit(facal_processing.face_size_flag)
 
             else:
@@ -195,8 +195,7 @@ class VideoThread(QThread, SetSettings):
         cv2.destroyAllWindows()
 
 
-
-class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
+class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
     '''
     Представления главного окна приложения
     '''
@@ -211,24 +210,20 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         self.mController = inController
         self.mModel = inModel
 
-
         self.set_window()
-
-
 
         # подключаем визуальное представление
         self.initUI()
 
         self.btn_reg = self.init_registration_button()
-        #self.face_size_check = SmartBool()
+        # self.face_size_check = SmartBool()
 
-        #self.init_text_on_screen_app('test')
+        # self.init_text_on_screen_app('test')
 
         self.modelIsChanged()
 
         # регистрируем представление в качестве наблюдателя
         self.mModel.addObserver(self)
-
 
     def modelIsChanged(self):
         """
@@ -237,19 +232,17 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
 
         self.app_text, self.button_set = self.mModel.change_state
 
-        #self.text_on_screen_app(self.app_text)
+        # self.text_on_screen_app(self.app_text)
         self.upgrade_button()
-        #self.setTestText(self.app_text)
-
-
+        # self.setTestText(self.app_text)
 
     ### text ###
     def init_text_on_screen_app(self, text):
         # create a text label
-        #self.layout = QVBoxLayout()
-        #self.label = QLabel(text)
-        #self.layout.addWidget(self.label)
-        #self.setLayout(self.layout)
+        # self.layout = QVBoxLayout()
+        # self.label = QLabel(text)
+        # self.layout.addWidget(self.label)
+        # self.setLayout(self.layout)
 
         ####
         self.image_label.setText(text)
@@ -260,19 +253,17 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
     ###btn###
     def init_registration_button(self):
         btn_reg = QPushButton(self)
-        #btn_reg.setText('')
+        # btn_reg.setText('')
         btn_reg.move(200, 370)
         btn_reg.resize(200, 100)
 
         return btn_reg
 
     def upgrade_button(self):
-
         if self.button_set['button_show_flag']:
             self.btn_reg.setText(self.button_set['button_text'])
+
     #########
-
-
 
     def set_window(self):
         '''
@@ -283,14 +274,12 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         self.setGeometry(300, 300, self.display_width, self.display_height)
 
     def initUI(self):
-
-        #video thread uding OpenCV
+        # video thread uding OpenCV
         self.image_label = QLabel(self)
         self.image_label.resize(self.display_width, self.display_height)
         self.init_thread()
 
     def init_thread(self):
-
         # create the video capture thread
         self.thread = VideoThread(self.mController, self.mModel)
 
@@ -299,8 +288,6 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
 
         # start the thread
         self.thread.start()
-
-
 
     @pyqtSlot(np.ndarray)
     def update_image(self, cv_img):
@@ -318,23 +305,4 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         p = convert_to_Qt_format.scaled(self.display_width, self.display_height, Qt.KeepAspectRatio)
 
         return QPixmap.fromImage(p)
-
-
-class SmartBool(QObject):
-
-    valueChanged = pyqtSignal(bool)         # Signal to be emitted when value changes.
-
-    def __init__(self):
-        super(SmartBool, self).__init__()   # Call QObject contructor.
-        self.__value = False                # False initialized by default.
-
-    @property
-    def value(self):
-        return self.__value
-
-    @value.setter
-    def value(self, value):
-        if self.__value != value:
-            self.valueChanged.emit(value)   # If value change emit signal.
-            self.__value = value
 
