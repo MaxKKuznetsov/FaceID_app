@@ -106,10 +106,17 @@ class FacialImageProcessing:
         self.frame = frame
         self.faces = []
         self.face_img = []
+        self.min_face_size = 5000
 
         user_data = UserID_data()
         self.known_face_encodings = user_data.known_face_encodings
         self.known_face_metadata = user_data.known_face_metadata
+
+        self.faces = self.detect_face_FaceRecognition(resize_coef=2)
+        #self.faces_MTCNN = self.detect_face_MTCNN()
+
+        #there is at least one face bigger then 5000pix
+        self.face_size_flag = self.face_size_test(self.faces, self.min_face_size)
 
 
     def resize_img_in(self, frame, resize_coef):
@@ -139,17 +146,8 @@ class FacialImageProcessing:
             rgb_small_frame = self.frame                      #(480, 640, 3)
 
 
-        #print(rgb_small_frame.shape)
-
-        #cv2.imshow('image', rgb_small_frame)
-        #cv2.waitKey(0)
-
-
         # Find all the face locations and face encodings in the current frame of video
         face_boxes = face_recognition.face_locations(rgb_small_frame)
-
-        #print('face_boxes:')
-        #print(face_boxes)
 
         faces = self.face_FaceRecognition2face_MTCNN(face_boxes, resize_coef=resize_coef)
 
@@ -235,7 +233,6 @@ class FacialImageProcessing:
 
         return faces
 
-
     def crop_image(self, face):
 
         x, y, width, height = face['box']
@@ -253,10 +250,12 @@ class FacialImageProcessing:
 
         return faces_out
 
-    def fase_size_test(self, faces, min_face_size):
+    def face_size_test(self, faces, min_face_size):
 
         for face in faces:
             x, y, width, height = face['box']
+
+            #print(width * height)
 
             if width * height > min_face_size:
                 return True

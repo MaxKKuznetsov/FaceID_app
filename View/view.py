@@ -7,7 +7,7 @@ from PyQt5 import QtGui
 from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, QLabel, QVBoxLayout, \
     QPushButton, QToolButton
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread, QRect
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread, QObject, QRect
 
 from Utility.MainWinObserver import MainWinObserver
 from Utility.MainWinMeta import MainWinMeta
@@ -37,26 +37,24 @@ class Srceen:
     OpenCV frame
     '''
 
-    def __init__(self, frame, state):
+    def __init__(self, frame, state, faces):
         self.frame = frame
         self.state = state
+        self.faces = faces
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
-
-        self.frame_transfer()
 
     def frame_transfer(self):
 
         if self.state == 'BackgroundMode':
 
             self.box_color = (255, 0, 0)
+            self.draw_faceboxes(self.faces, self.box_color)
 
-            #self.frame = self.drow_boxes_around_faces(faces, self.box_color)
 
         elif self.state == 'FaceIdentificationMode':
             self.box_color = (255, 0, 0)
-
-            #self.frame = self.drow_boxes_around_faces(faces, self.box_color)
+            self.draw_faceboxes(self.faces, self.box_color)
 
 
         elif self.state == 'UserRegistrationMode':
@@ -67,19 +65,11 @@ class Srceen:
             self.draw_ellipse()
             self.blur()
 
-        elif self.state == 'UserRegistrationMode':
-
-            self.box_color = (0, 0, 255)
-
-            self.ellipse_par()
-            self.draw_ellipse()
-            self.blur()
+            self.draw_faceboxes(self.faces, self.box_color)
+            self.frame = self.draw_text('Look at the camera', (170, 30), (0, 0, 255))
 
 
-        else:
-            pass
 
-        self.frame = self.draw_text(self.state, (150, 30), self.box_color)
 
 
     def draw_text(self, text, coord, color):
@@ -149,8 +139,8 @@ class Srceen:
         self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
 
         # Draw a label with a name below the face
-        cv2.rectangle(self.frame, (x, y + height - 35), (x + width, y + height), box_color, cv2.FILLED)
-        cv2.putText(self.frame, face_label, (x + 6, y + height - 6), cv2.FONT_HERSHEY_DUPLEX, 0.8, (0, 0, 0), 1)
+        cv2.rectangle(self.frame, (x-1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
+        cv2.putText(self.frame, face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 1)
 
 
 class VideoThread(QThread, SetSettings):
@@ -159,15 +149,13 @@ class VideoThread(QThread, SetSettings):
     '''
 
     change_pixmap_signal = pyqtSignal(np.ndarray)
+    check_face_size = pyqtSignal(bool)
 
     def __init__(self, mController, mModel):
         super().__init__()
 
-        #self._state = state
-        #self.db_from_file = lib.DB_in_file()
-
         self.mModel = mModel
-        #self.mController = mController
+        self.mController = mController
 
 
     def run(self):
@@ -179,24 +167,24 @@ class VideoThread(QThread, SetSettings):
             ret, cv_img_in = cap.read()
 
             if ret:
-                state = self.mModel._state
+                state = self.mModel.state
 
-                #print(self.mModel._state)
                 facal_processing = FacialImageProcessing(cv_img_in)
-                screen = Srceen(cv_img_in, state)
-
                 #faces_MTCNN = facal_processing.detect_face_MTCNN()
-                faces_FaceRecognition = facal_processing.detect_face_FaceRecognition(resize_coef=2)
+                faces = facal_processing.faces
 
+                screen = Srceen(cv_img_in, state, faces)
                 #screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
-                screen.draw_faceboxes(faces_FaceRecognition, (255, 0, 0))
+                #screen.draw_faceboxes(faces, (255, 0, 0))
+                screen.frame_transfer()
 
                 cv_img_out = screen.frame
 
                 # emit frame to show
                 self.change_pixmap_signal.emit(cv_img_out)
 
-                #if facal_processing.fase_size_test(self, faces_FaceRecognition, min_face_size=2000):
+                #emit fase size
+                self.check_face_size.emit(facal_processing.face_size_flag)
 
             else:
                 print("Can't receive frame (stream end?). Exiting ...")
@@ -213,6 +201,8 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
     Представления главного окна приложения
     '''
 
+    face_size_test = pyqtSignal(bool)
+
     def __init__(self, inController, inModel, parent=None):
         """
         Конструктор принимает ссылки на модель и контроллер.
@@ -221,12 +211,16 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         self.mController = inController
         self.mModel = inModel
 
+
         self.set_window()
+
+
 
         # подключаем визуальное представление
         self.initUI()
 
         self.btn_reg = self.init_registration_button()
+        #self.face_size_check = SmartBool()
 
         #self.init_text_on_screen_app('test')
 
@@ -295,10 +289,6 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         self.image_label.resize(self.display_width, self.display_height)
         self.init_thread()
 
-
-
-
-
     def init_thread(self):
 
         # create the video capture thread
@@ -310,9 +300,12 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         # start the thread
         self.thread.start()
 
+
+
     @pyqtSlot(np.ndarray)
     def update_image(self, cv_img):
         """Updates the image_label with a new opencv image"""
+
         qt_img = self.convert_cv_qt(cv_img)
         self.image_label.setPixmap(qt_img)
 
@@ -325,4 +318,23 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass = MainWinMeta):
         p = convert_to_Qt_format.scaled(self.display_width, self.display_height, Qt.KeepAspectRatio)
 
         return QPixmap.fromImage(p)
+
+
+class SmartBool(QObject):
+
+    valueChanged = pyqtSignal(bool)         # Signal to be emitted when value changes.
+
+    def __init__(self):
+        super(SmartBool, self).__init__()   # Call QObject contructor.
+        self.__value = False                # False initialized by default.
+
+    @property
+    def value(self):
+        return self.__value
+
+    @value.setter
+    def value(self, value):
+        if self.__value != value:
+            self.valueChanged.emit(value)   # If value change emit signal.
+            self.__value = value
 

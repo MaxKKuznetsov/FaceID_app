@@ -12,9 +12,11 @@ class Model:
 
     def __init__(self):
 
-        self._state = 'BackgroundMode'
+        self.state = 'BackgroundMode'
 
-        self._button_set = {'button_show_flag': True,
+        self.faces = []
+
+        self.button_set = {'button_show_flag': True,
                             'button_text': 'Add new user',
                             'button_location': [],
                             'button_size': [],
@@ -26,21 +28,21 @@ class Model:
     def return_button_set(self, InState):
 
         if (InState == 'BackgroundMode') or (InState == 'FaceIdentificationMode'):
-            self._buttot_set = {'button_show_flag': True,
+            self.button_set = {'button_show_flag': True,
                                 'button_text': 'Add new user',
                                 'button_location': (),
                                 'button_size': (),
                                 }
 
         elif (InState == 'UserRegistrationMode') or (InState == 'GreetingsMode'):
-            self._buttot_set = {'button_show_flag': True,
+            self.button_set = {'button_show_flag': True,
                                 'button_text': 'EXIT',
                                 'button_location': (),
                                 'button_size': (),
                                 }
 
         else:
-            self._buttot_set = {'button_show_flag': False,
+            self.button_set = {'button_show_flag': False,
                                 'button_text': '0',
                                 'button_location': [],
                                 'button_size': [],
@@ -49,11 +51,11 @@ class Model:
 
     @property
     def change_state(self):
-        return self._state, self._button_set
+        return self.state, self.button_set
 
     @change_state.setter
     def change_state(self, InState):
-        self._state = InState
+        self.state = InState
         self.return_button_set(InState)
 
         self.notifyObservers()
@@ -68,5 +70,3 @@ class Model:
     def notifyObservers(self):
         for x in self._mObservers:
             x.modelIsChanged()
-
-
