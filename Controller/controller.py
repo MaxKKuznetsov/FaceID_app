@@ -24,24 +24,7 @@ class Controller:
         # button from app
         self.mView.btn_reg.clicked.connect(self.controler_change_state)
 
-        ### Face identification
-        #if state == 'UserRegistrationMode':
 
-            # face_identification
-        #    ident_limit = 0.6
-        #    if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-        #        metadatas = facal_processing.face_identification(cv_img_in, self.mModel.known_face_encodings,
-        #                                                         self.mModel.known_face_metadata,
-        #                                                         ident_limit)
-        #
-        #if metadatas:
-        #    self.metadatas_out.emit(True)
-        # else:
-        #    self.metadatas_out.emit(False)
-
-        # print(metadatas)
-
-        # check face size
         self.mView.thread.check_face_size.connect(self.face_size_change_state)
 
         #Face identidication

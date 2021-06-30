@@ -38,13 +38,12 @@ class Srceen:
     OpenCV frame
     '''
 
-    def __init__(self, frame, state, faces, metadatas):
+    def __init__(self, frame, state, faces):
 
         self.box_color = (0, 0, 0)
         self.frame = frame
         self.state = state
         self.faces = faces
-        self.metadatas = metadatas
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
     def frame_transfer(self):
@@ -53,10 +52,12 @@ class Srceen:
 
             self.box_color = (255, 0, 0)
             self.draw_faceboxes(self.faces, self.box_color)
+            self.frame = self.draw_text('BackgroundMode', (170, 30), (0, 0, 255))
 
         elif self.state == 'FaceIdentificationMode':
             self.box_color = (255, 0, 0)
             self.draw_faceboxes(self.faces, self.box_color)
+            self.frame = self.draw_text('FaceIdentificationMode', (170, 30), (0, 0, 255))
 
         elif self.state == 'UserRegistrationMode':
 
@@ -70,13 +71,13 @@ class Srceen:
             self.frame = self.draw_text('Look at the camera', (170, 30), (0, 0, 255))
 
         elif self.state == 'GreetingsMode':
-            print(self.faces)
-            print(self.metadatas)
+            # print(self.faces)
+            # print(self.metadatas)
 
             self.box_color = (0, 255, 0)
-
-            self.draw_faceboxes(self.faces, self.box_color)
             self.draw_text('!!!Hello!!!', (250, 70), self.box_color)
+
+            self.draw_faceboxes_ID(self.faces, self.box_color)
 
         else:
             pass
@@ -123,10 +124,40 @@ class Srceen:
 
         self.frame = np.where(mask == np.array([255, 255, 255]), self.frame, blurred_img)
 
+    def draw_faceboxes_ID(self, faces, box_color):
+
+        for face in faces:
+            try:
+                face_label = str(face['metadata']['userID'])
+                self.draw_facebox_ID(face, box_color, face_label)
+            except:
+                self.draw_facebox(face, (255, 0, 0))
+
+
+    # draw an image with detected objects
+    def draw_facebox_ID(self, face, box_color, face_label):
+
+        thickness = 2
+
+        # get coordinates
+        x, y, width, height = face['box']
+
+        start_point = (x, y)
+        end_point = (x + width, y + height)
+
+        # face_label = face['face_label']
+
+        # draw the box around face
+        self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
+
+        # Draw a label with a name below the face
+        cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
+        cv2.putText(self.frame, 'ID: %s' % face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 1)
+
+
     def draw_faceboxes(self, faces, box_color):
 
         for face in faces:
-            # print(face)
             self.draw_facebox(face, box_color)
 
     # draw an image with detected objects
@@ -140,14 +171,8 @@ class Srceen:
         start_point = (x, y)
         end_point = (x + width, y + height)
 
-        face_label = face['face_label']
-
         # draw the box around face
         self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
-
-        # Draw a label with a name below the face
-        cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
-        cv2.putText(self.frame, face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 1)
 
 
 class VideoThread(QThread, SetSettings):
@@ -165,6 +190,8 @@ class VideoThread(QThread, SetSettings):
         self.mModel = mModel
         self.mController = mController
 
+        self.metadatas = []
+
     def run(self):
 
         # capture from web cam
@@ -179,28 +206,27 @@ class VideoThread(QThread, SetSettings):
                 ### Facial Image Processing
                 facal_processing = FacialImageProcessing(cv_img_in)
                 # faces_MTCNN = facal_processing.detect_face_MTCNN()
-                faces = facal_processing.faces
+                self.faces = facal_processing.faces
 
-                metadatas = []
                 ### Face identification
-                if state == 'UserRegistrationMode':
-
+                if (state == 'FaceIdentificationMode') \
+                        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
                     # face_identification
-                    ident_limit = 0.6
                     if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                        metadatas = facal_processing.face_identification(cv_img_in, self.mModel.known_face_encodings,
-                                                                         self.mModel.known_face_metadata,
-                                                                         ident_limit)
+                        facal_processing.face_identification(self.mModel.known_face_encodings,
+                                                             self.mModel.known_face_metadata)
 
-                    if metadatas:
-                        self.metadatas_out.emit(True)
-                    else:
-                        self.metadatas_out.emit(False)
+                        self.faces = facal_processing.faces
+                        for face in self.faces:
+                            #print(face)
+                            if face['metadata']:
+                                self.metadatas_out.emit(True)
 
-                    # print(metadatas)
+                if state == 'UserRegistrationMode':
+                    pass
 
                 ### Visualisation ###
-                screen = Srceen(cv_img_in, state, faces, metadatas)
+                screen = Srceen(cv_img_in, state, self.faces)
                 # screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
                 # screen.draw_faceboxes(faces, (255, 0, 0))
                 screen.frame_transfer()

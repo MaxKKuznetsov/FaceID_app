@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from mtcnn_cv2 import MTCNN
 
 
-
 class FrameQualityEstimator:
     r = 0
     g = 1
@@ -105,9 +104,9 @@ class FacialImageProcessing:
         self.face_img = []
         self.min_face_size = 5000
 
-        #user_data = UserID_data()
-        #self.known_face_encodings = user_data.known_face_encodings
-        #self.known_face_metadata = user_data.known_face_metadata
+        # user_data = UserID_data()
+        # self.known_face_encodings = user_data.known_face_encodings
+        # self.known_face_metadata = user_data.known_face_metadata
 
         self.faces = self.detect_face_FaceRecognition(resize_coef=2)
         # self.faces_MTCNN = self.detect_face_MTCNN()
@@ -142,16 +141,17 @@ class FacialImageProcessing:
             rgb_small_frame = self.frame  # (480, 640, 3)
 
         # Find all the face locations and face encodings in the current frame of video
-        face_boxes = face_recognition.face_locations(rgb_small_frame)
+        face_locations = face_recognition.face_locations(rgb_small_frame)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
 
-        faces = self.face_FaceRecognition2face_MTCNN(face_boxes, resize_coef=resize_coef)
+        faces = self.face_FaceRecognition2face_MTCNN(face_locations, face_encodings, resize_coef=resize_coef)
 
         face_label = 'FaceRec'
         faces = self.add_face_label(faces, face_label)
 
         return faces
 
-    def face_FaceRecognition2face_MTCNN(self, face_boxes, resize_coef):
+    def face_FaceRecognition2face_MTCNN(self, face_boxes, face_encodings, resize_coef):
         '''
         :param face_boxes:
         [(223, 509, 331, 402)] - top, right, bottom, left
@@ -168,7 +168,10 @@ class FacialImageProcessing:
         '''
 
         faces = []
-        for face_box in face_boxes:
+        for i in range(len(face_boxes)):
+
+            face_box = face_boxes[i]
+            face_encoding = face_encodings[i]
 
             top, right, bottom, left = face_box
 
@@ -181,15 +184,10 @@ class FacialImageProcessing:
 
             faces.append({'box': [left, top,
                                   right - left,
-                                  bottom - top]
+                                  bottom - top],
+                          'face_encoding': face_encoding
                           })
 
-            # faces.append({'box': [face_box[3], face_box[0],
-            #                      face_box[1] - face_box[3],
-            #                      face_box[2] - face_box[0]
-            #                      ],
-            #              'face_label': 'FaceRecognition'
-            #              })
 
         return faces
 
@@ -256,33 +254,22 @@ class FacialImageProcessing:
 
         return False
 
-    def face_identification(self, frame, known_face_encodings, known_face_metadata, ident_limit):
-
-        # Resize frame of video to 1/4 size for faster face recognition processing
-        small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
-
-        # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
-        rgb_small_frame = small_frame[:, :, ::-1]
-
-        # Find all the face locations and face encodings in the current frame of video
-        face_locations = face_recognition.face_locations(rgb_small_frame)
-        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
-
+    def face_identification(self, known_face_encodings, known_face_metadata):
 
         # Loop through each detected face and see if it is one we have seen before
         # If so, we'll give it a label that we'll draw on top of the video.
-        face_labels = []
         metadatas = []
-        for face_location, face_encoding in zip(face_locations, face_encodings):
+        for k in range(len(self.faces)):
+
+            # Find all the face locations and face encodings in the current frame of video
+            face_encoding = self.faces[k]['face_encoding']
+
             # See if this face is in our list of known faces.
-            metadata = self.lookup_known_face(face_encoding, known_face_encodings, known_face_metadata, ident_limit)
-            metadatas.append(metadata)
+            metadata = self.lookup_known_face(face_encoding, known_face_encodings, known_face_metadata)
+            self.faces[k]['metadata'] = metadata
 
-            #return metadata
 
-        return metadatas
-
-    def lookup_known_face(self, face_encoding, known_face_encodings, known_face_metadata, ident_limit):
+    def lookup_known_face(self, face_encoding, known_face_encodings, known_face_metadata):
         """
         See if this is a face we already have in our face list
         """
@@ -297,31 +284,28 @@ class FacialImageProcessing:
         # the more similar that face was to the unknown face.
         face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
 
-        #print('known_face_encodings: %i' % len(known_face_encodings))
-        #print('face_encoding: %i' % len(face_encoding))
-        #print('face_distances:')
-        #print(face_distances)
+
 
         # Get the known face that had the lowest distance (i.e. most similar) from the unknown face.
         best_match_index = np.argmin(face_distances)
-        #best_match_index = np.argmax(face_distances)
+        # best_match_index = np.argmax(face_distances)
 
-        #print('best_match_index=%i' % best_match_index)
+        # print('best_match_index=%i' % best_match_index)
 
         # If the face with the lowest distance had a distance under 0.6, we consider it a face match.
         # 0.6 comes from how the face recognition model was trained. It was trained to make sure pictures
         # of the same person always were less than 0.6 away from each other.
         # Here, we are loosening the threshold a little bit to 0.65 because it is unlikely that two very similar
         # people will come up to the door at the same time.
+        ident_limit = 0.6
         if face_distances[best_match_index] < ident_limit:
-
             # If we have a match, look up the metadata we've saved for it (like the first time we saw it, etc)
             metadata = known_face_metadata[best_match_index]
 
             metadata["face_distance"] = face_distances[best_match_index]
 
-            #print('metadata:')
-            #print(metadata)
+            # print('metadata:')
+            # print(metadata)
 
         return metadata
 
@@ -344,8 +328,8 @@ class FacialImageProcessing:
         Qres_frame = 'c=%.2f; b=%.2f; f=%.2f' % (contrast, brightness, varianceOfLaplacian)
         Qres_face = 'FConf=%.5f; FQual=%.5f ' % (face_confidence, FaceQuality)
 
-        #print(Qres_frame)
-        #print(Qres_face)
+        # print(Qres_frame)
+        # print(Qres_face)
 
         return contrast, brightness, varianceOfLaplacian, face_confidence, FaceQuality
 
@@ -353,7 +337,7 @@ class FacialImageProcessing:
 
         frame_height, frame_width, channels = frame.shape
 
-        #print(frame_width, frame_height)
+        # print(frame_width, frame_height)
 
         if not faces:
             return False
@@ -365,13 +349,12 @@ class FacialImageProcessing:
             return False
         elif faces[0]['size'] > 100000:
             return False
-        #elif faces[0]['focus'] < 50:
+        # elif faces[0]['focus'] < 50:
         #    return False
-        #elif (faces[0]['contrast'] < 0.1) or (faces[0]['contrast'] > 0.9):
+        # elif (faces[0]['contrast'] < 0.1) or (faces[0]['contrast'] > 0.9):
         #    return False
-        #elif (faces[0]['brightness'] < 0.1) or (faces[0]['brightness'] > 0.9):
+        # elif (faces[0]['brightness'] < 0.1) or (faces[0]['brightness'] > 0.9):
         #    return False
-
 
         elif faces[0]['face_confidence'] > 0.999:
             print('!!!!! face_confidence > 0.999 !!!!!')
@@ -382,9 +365,9 @@ class FacialImageProcessing:
     def face_position_limit(self, face, frame_height, frame_width):
         x, y, face_width, face_height = face['box']
 
-        if not (x > frame_width/3) and ((x + face_width) < (frame_width - frame_width/3)):
+        if not (x > frame_width / 3) and ((x + face_width) < (frame_width - frame_width / 3)):
             return False
-        elif not (y > frame_height/3) and ((y + face_height) < (frame_height - frame_height/3)):
+        elif not (y > frame_height / 3) and ((y + face_height) < (frame_height - frame_height / 3)):
             return False
         else:
             return True
