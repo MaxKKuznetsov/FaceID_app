@@ -38,10 +38,13 @@ class Srceen:
     OpenCV frame
     '''
 
-    def __init__(self, frame, state, faces):
+    def __init__(self, frame, state, faces, metadatas):
+
+        self.box_color = (0, 0, 0)
         self.frame = frame
         self.state = state
         self.faces = faces
+        self.metadatas = metadatas
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
     def frame_transfer(self):
@@ -51,11 +54,9 @@ class Srceen:
             self.box_color = (255, 0, 0)
             self.draw_faceboxes(self.faces, self.box_color)
 
-
         elif self.state == 'FaceIdentificationMode':
             self.box_color = (255, 0, 0)
             self.draw_faceboxes(self.faces, self.box_color)
-
 
         elif self.state == 'UserRegistrationMode':
 
@@ -68,6 +69,17 @@ class Srceen:
             self.draw_faceboxes(self.faces, self.box_color)
             self.frame = self.draw_text('Look at the camera', (170, 30), (0, 0, 255))
 
+        elif self.state == 'GreetingsMode':
+            print(self.faces)
+            print(self.metadatas)
+
+            self.box_color = (0, 255, 0)
+
+            self.draw_faceboxes(self.faces, self.box_color)
+            self.draw_text('!!!Hello!!!', (250, 70), self.box_color)
+
+        else:
+            pass
 
     def draw_text(self, text, coord, color):
 
@@ -145,6 +157,7 @@ class VideoThread(QThread, SetSettings):
 
     change_pixmap_signal = pyqtSignal(np.ndarray)
     check_face_size = pyqtSignal(bool)
+    metadatas_out = pyqtSignal(bool)
 
     def __init__(self, mController, mModel):
         super().__init__()
@@ -168,14 +181,26 @@ class VideoThread(QThread, SetSettings):
                 # faces_MTCNN = facal_processing.detect_face_MTCNN()
                 faces = facal_processing.faces
 
+                metadatas = []
+                ### Face identification
                 if state == 'UserRegistrationMode':
+
                     # face_identification
-                    metadatas = facal_processing.face_identification()
+                    ident_limit = 0.6
+                    if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
+                        metadatas = facal_processing.face_identification(cv_img_in, self.mModel.known_face_encodings,
+                                                                         self.mModel.known_face_metadata,
+                                                                         ident_limit)
 
+                    if metadatas:
+                        self.metadatas_out.emit(True)
+                    else:
+                        self.metadatas_out.emit(False)
 
+                    # print(metadatas)
 
                 ### Visualisation ###
-                screen = Srceen(cv_img_in, state, faces)
+                screen = Srceen(cv_img_in, state, faces, metadatas)
                 # screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
                 # screen.draw_faceboxes(faces, (255, 0, 0))
                 screen.frame_transfer()
@@ -307,4 +332,3 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
         p = convert_to_Qt_format.scaled(self.display_width, self.display_height, Qt.KeepAspectRatio)
 
         return QPixmap.fromImage(p)
-

@@ -1,45 +1,13 @@
-import time
 import os
-import pickle
 from datetime import datetime, timedelta
-
-class SetSettings():
-    def __init__(self):
-        self.screen_settings()
-        self.video_settings()
-
-    def screen_settings(self):
-        self.display_width, self.display_height = 640, 480
-
-    def video_settings(self):
-        self.out_video_file = os.path.join('saved_video', 'output.avi')
-        #self.out_video_file = os.path.join('BestFrameSelection', 'saved_video', 'output.avi')
-        self.out_video_fps = 20
-        self.out_video_width, self.out_video_height = 640, 480
-
-
-
-
-class Timer():
-    def __init__(self):
-        self.t_start = 0
-        self.dt = 0
-
-    def start_timer(self):
-        self.t_start = time.time()
-
-    def stop_timer(self):
-        self.t_start = 0
-
-    def return_time(self):
-        return time.time() - self.t_start
-
+import pickle
 
 class DB_in_file():
 
     def __init__(self):
+        print('loading known_face_encodings')
+
         self.db_file = os.path.join('DB', 'known_faces_test.dat')
-        #self.db_file = os.path.join('DB', 'known_faces111.dat')
         self.create_empty_file()
         self.load_known_faces()
 
@@ -55,6 +23,8 @@ class DB_in_file():
             with open(self.db_file, 'rb') as face_data_file:
                 self.known_face_encodings, self.known_face_metadata = pickle.load(face_data_file)
                 print("Face ID loaded from file")
+                print('N Users=%i' % len(self.known_face_metadata))
+
         except:
             print("No previous face data found - starting with a blank known face list.")
             self.known_face_encodings, self.known_face_metadata = [], []
@@ -86,3 +56,17 @@ class DB_in_file():
             "face_image": new_face_image,
             "face_distance": 0,
         })
+
+
+
+class User:
+    '''
+    User ID data drom file
+    '''
+
+    def __init__(self):
+        pass
+
+
+
+

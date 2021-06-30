@@ -5,6 +5,7 @@ from PyQt5 import QtWidgets
 from Model.model import Model
 from Controller.controller import Controller
 
+
 def main():
     app = QtWidgets.QApplication(sys.argv)
 
