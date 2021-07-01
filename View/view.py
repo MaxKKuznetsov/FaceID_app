@@ -9,10 +9,13 @@ from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, QLabel, QVBoxLay
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread, QObject, QRect
 
+from playsound import playsound
+
 from Utility.MainWinObserver import MainWinObserver
 from Utility.MainWinMeta import MainWinMeta
 
 from Model.facial_image_processing import FacialImageProcessing
+from Utility.timer import elapsed
 
 
 class SetSettings:
@@ -38,12 +41,14 @@ class Srceen:
     OpenCV frame
     '''
 
-    def __init__(self, frame, state, faces):
+    def __init__(self, frame, state, faces, timer, new_face_img):
 
         self.box_color = (0, 0, 0)
         self.frame = frame
         self.state = state
         self.faces = faces
+        self.timer = timer
+        self.new_face_img = new_face_img
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
     def frame_transfer(self):
@@ -68,7 +73,7 @@ class Srceen:
             self.blur()
 
             self.draw_faceboxes(self.faces, self.box_color)
-            self.frame = self.draw_text('Look at the camera', (170, 30), (0, 0, 255))
+            self.frame = self.draw_text('Look at the camera: %i' % self.timer, (170, 30), (0, 0, 255))
 
         elif self.state == 'GreetingsMode':
             # print(self.faces)
@@ -78,6 +83,23 @@ class Srceen:
             self.draw_text('!!!Hello!!!', (250, 70), self.box_color)
 
             self.draw_faceboxes_ID(self.faces, self.box_color)
+
+        elif self.state == 'AlreadyRegistered':
+            # print(self.faces)
+            # print(self.metadatas)
+
+            self.box_color = (0, 0, 255)
+            self.draw_text('You are registered already :)', (100, 70), self.box_color)
+
+            self.draw_faceboxes_ID(self.faces, (0, 255, 0))
+
+        elif self.state == 'SaveNewUserMode':
+            self.box_color = (0, 0, 255)
+
+            self.frame[0:150, 0:150] = self.new_face_img
+
+            self.draw_text('Registration successful', (150, 70), self.box_color)
+            self.draw_faceboxes_ID(self.faces, (0, 255, 0))
 
         else:
             pass
@@ -175,6 +197,7 @@ class Srceen:
         self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
 
 
+
 class VideoThread(QThread, SetSettings):
     '''
     видеопоток в формате OpenCV
@@ -183,6 +206,8 @@ class VideoThread(QThread, SetSettings):
     change_pixmap_signal = pyqtSignal(np.ndarray)
     check_face_size = pyqtSignal(bool)
     metadatas_out = pyqtSignal(bool)
+    timer_time = pyqtSignal(float)
+    emit_face_quality_limit = pyqtSignal(bool)
 
     def __init__(self, mController, mModel):
         super().__init__()
@@ -190,7 +215,10 @@ class VideoThread(QThread, SetSettings):
         self.mModel = mModel
         self.mController = mController
 
+        self.timer = 0
+
         self.metadatas = []
+        self.new_face_img = []
 
     def run(self):
 
@@ -211,6 +239,7 @@ class VideoThread(QThread, SetSettings):
                 ### Face identification
                 if (state == 'FaceIdentificationMode') \
                         or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
+
                     # face_identification
                     if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
                         facal_processing.face_identification(self.mModel.known_face_encodings,
@@ -218,15 +247,24 @@ class VideoThread(QThread, SetSettings):
 
                         self.faces = facal_processing.faces
                         for face in self.faces:
-                            #print(face)
                             if face['metadata']:
                                 self.metadatas_out.emit(True)
 
                 if state == 'UserRegistrationMode':
-                    pass
+                    facal_processing.frame_quality_aware()
+                    face_quality_limit = facal_processing.face_quality_limit()
+                else:
+                    face_quality_limit = False
+
+                if face_quality_limit:
+                    self.new_face_img = facal_processing.new_face_image_mk(self.faces[0])
+
+
+                #print(face_quality_limit)
+
 
                 ### Visualisation ###
-                screen = Srceen(cv_img_in, state, self.faces)
+                screen = Srceen(cv_img_in, state, self.faces, self.timer, self.new_face_img)
                 # screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
                 # screen.draw_faceboxes(faces, (255, 0, 0))
                 screen.frame_transfer()
@@ -236,8 +274,15 @@ class VideoThread(QThread, SetSettings):
                 # emit frame to show
                 self.change_pixmap_signal.emit(cv_img_out)
 
+                # timer
+                self.timer = self.mController.timer.return_time()
+                self.timer_time.emit(self.timer)
+
                 # emit fase size
                 self.check_face_size.emit(facal_processing.face_size_flag)
+
+                # emit face_quality_limit
+                self.emit_face_quality_limit.emit(face_quality_limit)
 
             else:
                 print("Can't receive frame (stream end?). Exiting ...")
@@ -288,6 +333,8 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
         # self.text_on_screen_app(self.app_text)
         self.upgrade_button()
         # self.setTestText(self.app_text)
+
+        self.sound_effects(self.mModel.state)
 
     ### text ###
     def init_text_on_screen_app(self, text):
@@ -358,3 +405,24 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
         p = convert_to_Qt_format.scaled(self.display_width, self.display_height, Qt.KeepAspectRatio)
 
         return QPixmap.fromImage(p)
+
+    def sound_effects(self, state):
+
+        if state == 'GreetingsMode':
+            self.sound_Greetings()
+        elif state == 'SaveNewUserMode':
+            self.sound_camera()
+
+
+    def sound_Greetings(self):
+        sound_folder = os.path.join('Static', 'sounds')
+        photo_shoot_sound_file = 'greetings3.mp3'
+
+        playsound(os.path.join(sound_folder, photo_shoot_sound_file))
+
+
+    def sound_camera(self):
+        sound_folder = os.path.join('Static', 'sounds')
+        photo_shoot_sound_file = 'camera_shoot.mp3'
+
+        playsound(os.path.join(sound_folder, photo_shoot_sound_file))

@@ -30,6 +30,7 @@ class Model:
         self.known_face_encodings = self.db_from_file.known_face_encodings
         self.known_face_metadata = self.db_from_file.known_face_metadata
 
+
         # список наблюдателей
         self._mObservers = []
 

@@ -5,10 +5,10 @@ import pickle
 import os
 import math
 
-from datetime import datetime, timedelta
 
-# from enum import Enum
 from mtcnn_cv2 import MTCNN
+
+from Utility.timer import elapsed
 
 
 class FrameQualityEstimator:
@@ -135,23 +135,37 @@ class FacialImageProcessing:
         'mouth_left': (428, 272), 'mouth_right': (452, 268)}}]
         '''
 
-        if resize_coef:  # faster
+        if resize_coef and resize_coef != 1:  # faster
             rgb_small_frame = self.resize_img_in(self.frame, 1 / resize_coef)  # (120, 160, 3)
         else:  # better quality
             rgb_small_frame = self.frame  # (480, 640, 3)
 
         # Find all the face locations and face encodings in the current frame of video
-        face_locations = face_recognition.face_locations(rgb_small_frame)
-        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+        face_boxes = face_recognition.face_locations(rgb_small_frame)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_boxes)
 
-        faces = self.face_FaceRecognition2face_MTCNN(face_locations, face_encodings, resize_coef=resize_coef)
+        face_landmarks = face_recognition.api.face_landmarks(self.frame)
+        #'chin', 'left_eyebrow', 'right_eyebrow', 'nose_bridge',
+        # 'nose_tip', 'left_eye', 'right_eye', 'top_lip', 'bottom_lip'
+
+
+        confidence = 1
+
+
+        faces = self.face_FaceRecognition2face_MTCNN(face_boxes, face_encodings,
+                                                     resize_coef=resize_coef,
+                                                     face_landmarks=face_landmarks,
+                                                     confidence=confidence)
+
+        faces = self.fase_size_calc(faces)
 
         face_label = 'FaceRec'
         faces = self.add_face_label(faces, face_label)
 
         return faces
 
-    def face_FaceRecognition2face_MTCNN(self, face_boxes, face_encodings, resize_coef):
+    def face_FaceRecognition2face_MTCNN(self, face_boxes, face_encodings,
+                                        resize_coef, face_landmarks, confidence):
         '''
         :param face_boxes:
         [(223, 509, 331, 402)] - top, right, bottom, left
@@ -185,7 +199,9 @@ class FacialImageProcessing:
             faces.append({'box': [left, top,
                                   right - left,
                                   bottom - top],
-                          'face_encoding': face_encoding
+                          'face_encoding': face_encoding,
+                          'confidence': confidence,
+                          'face_landmarks': face_landmarks,
                           })
 
 
@@ -254,6 +270,7 @@ class FacialImageProcessing:
 
         return False
 
+    #@elapsed
     def face_identification(self, known_face_encodings, known_face_metadata):
 
         # Loop through each detected face and see if it is one we have seen before
@@ -309,45 +326,57 @@ class FacialImageProcessing:
 
         return metadata
 
-    def frame_quality_aware(self, frame, face):
-
-        face_confidence = round(float(face['confidence']), 5)
-        # print(face_confidence)
+    def frame_quality_aware(self):
 
         # FrameQEstimation
-        FrameQEstimation = FrameQualityEstimator(frame)
+        FrameQEstimation = FrameQualityEstimator(self.frame)
         contrast = FrameQEstimation.get_image_contrast()
         brightness = FrameQEstimation.get_image_brightness()
-        varianceOfLaplacian = FrameQEstimation.varianceOfLaplacian(frame)
+        varianceOfLaplacian = FrameQEstimation.varianceOfLaplacian(self.frame)
 
         # FaceQEstimation
         # FaceQEstimation = FaceQNetQualityEstimator(frame)
         # FaceQuality = FaceQEstimation.estimate_quality_qnet_1frame()
         FaceQuality = 1
 
-        Qres_frame = 'c=%.2f; b=%.2f; f=%.2f' % (contrast, brightness, varianceOfLaplacian)
-        Qres_face = 'FConf=%.5f; FQual=%.5f ' % (face_confidence, FaceQuality)
+
+
+        #save result in faces
+
+        if self.faces:
+            #print(faces)
+            for k in range(len(self.faces)):
+
+                #print(self.faces[k])
+
+                face_confidence = round(float(self.faces[k]['confidence']), 5)
+                # print(face_confidence)
+
+                self.faces[k]['contrast'], self.faces[k]['brightness'], self.faces[k]['focus'] = contrast, brightness, varianceOfLaplacian
+                self.faces[k]['face_confidence'], self.faces[k]['FaceQuality'] = face_confidence, FaceQuality
+
+        #Qres_frame = 'c=%.2f; b=%.2f; f=%.2f' % (contrast, brightness, varianceOfLaplacian)
+        #Qres_face = 'FConf=%.5f; FQual=%.5f ' % (face_confidence, FaceQuality)
 
         # print(Qres_frame)
         # print(Qres_face)
 
-        return contrast, brightness, varianceOfLaplacian, face_confidence, FaceQuality
 
-    def face_quality_limit(self, frame, faces):
+    def face_quality_limit(self):
 
-        frame_height, frame_width, channels = frame.shape
+        frame_height, frame_width, channels = self.frame.shape
 
         # print(frame_width, frame_height)
 
-        if not faces:
+        if not self.faces:
             return False
-        elif len(faces) > 1:
+        elif len(self.faces) > 1:
             return False
-        elif not self.face_position_limit(faces[0], frame_height, frame_width):
+        elif not self.face_position_limit(self.faces[0], frame_height, frame_width):
             return False
-        elif faces[0]['size'] < 3000:
+        elif self.faces[0]['size'] < 3000:
             return False
-        elif faces[0]['size'] > 100000:
+        elif self.faces[0]['size'] > 100000:
             return False
         # elif faces[0]['focus'] < 50:
         #    return False
@@ -356,7 +385,7 @@ class FacialImageProcessing:
         # elif (faces[0]['brightness'] < 0.1) or (faces[0]['brightness'] > 0.9):
         #    return False
 
-        elif faces[0]['face_confidence'] > 0.999:
+        elif self.faces[0]['face_confidence'] > 0.999:
             print('!!!!! face_confidence > 0.999 !!!!!')
             return True
         else:
@@ -365,9 +394,22 @@ class FacialImageProcessing:
     def face_position_limit(self, face, frame_height, frame_width):
         x, y, face_width, face_height = face['box']
 
-        if not (x > frame_width / 3) and ((x + face_width) < (frame_width - frame_width / 3)):
+        if not (x > frame_width / 4) and ((x + face_width) < (frame_width - frame_width / 4)):
             return False
-        elif not (y > frame_height / 3) and ((y + face_height) < (frame_height - frame_height / 3)):
+        elif not (y > frame_height / 4) and ((y + face_height) < (frame_height - frame_height / 4)):
             return False
         else:
             return True
+
+    def new_face_image_mk(self, face):
+
+        face2save_size = (150, 150)
+
+        # Grab the image of the the face from the current frame of video
+        x, y, face_width, face_height = face['box']
+        face_image = self.frame[y:y + face_height, x:x + face_width]
+        face_image = cv2.resize(face_image, face2save_size)
+
+        return face_image
+
+
