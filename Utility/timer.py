@@ -36,8 +36,8 @@ class Timer(MainWinObserver, metaclass=MainWinMeta):
         Метод вызывается при изменении модели.
         """
         #self.return_time()
-        print(self.mModel.state)
-        print('time end: %s' % str(self.return_time()))
+        #print(self.mModel.state)
+        #print('time end: %s' % str(self.return_time()))
         self.stop_timer()
         self.start_timer()
 

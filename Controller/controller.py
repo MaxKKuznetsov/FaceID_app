@@ -50,7 +50,6 @@ class Controller:
 
     def save_new_user(self, face_quality_limit_flag):
         if face_quality_limit_flag:
-            print(face_quality_limit_flag)
             self._state = 'SaveNewUserMode'
             self.mModel.change_state = self._state
 

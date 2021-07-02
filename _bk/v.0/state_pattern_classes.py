@@ -503,21 +503,6 @@ class GreetingsMode2(State):
         self.switch(state)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class UserRegistrationMode1(State):
 
     name = 'UserRegistrationMode1'

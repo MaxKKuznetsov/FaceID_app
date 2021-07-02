@@ -41,14 +41,14 @@ class Srceen:
     OpenCV frame
     '''
 
-    def __init__(self, frame, state, faces, timer, new_face_img):
+    def __init__(self, frame, state, faces, timer, face_img):
 
         self.box_color = (0, 0, 0)
         self.frame = frame
         self.state = state
         self.faces = faces
         self.timer = timer
-        self.new_face_img = new_face_img
+        self.face_img = face_img
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
     def frame_transfer(self):
@@ -84,6 +84,9 @@ class Srceen:
 
             self.draw_faceboxes_ID(self.faces, self.box_color)
 
+            self.frame[0:150, 0:150] = self.face_img
+
+
         elif self.state == 'AlreadyRegistered':
             # print(self.faces)
             # print(self.metadatas)
@@ -96,13 +99,18 @@ class Srceen:
         elif self.state == 'SaveNewUserMode':
             self.box_color = (0, 0, 255)
 
-            self.frame[0:150, 0:150] = self.new_face_img
+            #self.draw_face_on_frame(self.new_face_img)
+            self.frame[0:150, 0:150] = self.face_img
 
             self.draw_text('Registration successful', (150, 70), self.box_color)
             self.draw_faceboxes_ID(self.faces, (0, 255, 0))
 
         else:
             pass
+
+    #def draw_face_on_frame(self, new_face_img):
+    #    self.frame[0:150, 0:150] = new_face_img
+
 
     def draw_text(self, text, coord, color):
 
@@ -219,6 +227,7 @@ class VideoThread(QThread, SetSettings):
 
         self.metadatas = []
         self.new_face_img = []
+        self.face_img2show = []
 
     def run(self):
 
@@ -249,22 +258,35 @@ class VideoThread(QThread, SetSettings):
                         for face in self.faces:
                             if face['metadata']:
                                 self.metadatas_out.emit(True)
+                                self.face_img2show = face['metadata']['face_image']
 
-                if state == 'UserRegistrationMode':
+                if (state == 'UserRegistrationMode') and self.timer > 3:
                     facal_processing.frame_quality_aware()
                     face_quality_limit = facal_processing.face_quality_limit()
                 else:
                     face_quality_limit = False
 
                 if face_quality_limit:
-                    self.new_face_img = facal_processing.new_face_image_mk(self.faces[0])
+                    new_face = self.faces[0]
+                    self.new_face_img = facal_processing.new_face_image_mk(new_face)
+                    self.face_img2show = self.new_face_img
+
+                    try:
+                        NewUserID = len(self.mModel.known_face_metadata) + 1
+                        new_face_encodings = new_face['face_encoding']
+                        print('new userID: %s' % NewUserID)
+
+                        self.mModel.db_from_file.register_new_face(new_face_encodings, self.new_face_img, NewUserID)
+                        self.mModel.db_from_file.save_known_faces()
+
+                    except:
+                        print('ERROR in module Register New Face')
 
 
                 #print(face_quality_limit)
 
-
                 ### Visualisation ###
-                screen = Srceen(cv_img_in, state, self.faces, self.timer, self.new_face_img)
+                screen = Srceen(cv_img_in, state, self.faces, self.timer, self.face_img2show)
                 # screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
                 # screen.draw_faceboxes(faces, (255, 0, 0))
                 screen.frame_transfer()

@@ -386,7 +386,7 @@ class FacialImageProcessing:
         #    return False
 
         elif self.faces[0]['face_confidence'] > 0.999:
-            print('!!!!! face_confidence > 0.999 !!!!!')
+            #print('!!!!! face_confidence > 0.999 !!!!!')
             return True
         else:
             return False
