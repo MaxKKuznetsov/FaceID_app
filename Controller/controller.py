@@ -1,6 +1,7 @@
 from View.view import View
-from Utility.timer import elapsed
 from Utility.timer import Timer
+
+from Utility.timer import elapsed_1arg, elapsed_2arg, elapsed_3arg
 
 class Controller:
     """

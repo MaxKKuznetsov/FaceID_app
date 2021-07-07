@@ -14,8 +14,11 @@ from playsound import playsound
 from Utility.MainWinObserver import MainWinObserver
 from Utility.MainWinMeta import MainWinMeta
 
-from Model.facial_image_processing import FacialImageProcessing
-from Utility.timer import elapsed
+from Model.facial_image_processing import FrameProcessing, Face
+# from Model.facial_image_processing import face_FaceRecognition2face_MTCNN
+# from Model.facial_image_processing import detect_face, face_FaceRecognition2face_MTCNN
+
+from Utility.timer import elapsed_1arg, elapsed_2arg, elapsed_3arg
 
 
 class SetSettings:
@@ -99,7 +102,7 @@ class Srceen:
         elif self.state == 'SaveNewUserMode':
             self.box_color = (0, 0, 255)
 
-            #self.draw_face_on_frame(self.new_face_img)
+            # self.draw_face_on_frame(self.new_face_img)
             self.frame[0:150, 0:150] = self.face_img
 
             self.draw_text('Registration successful', (150, 70), self.box_color)
@@ -108,9 +111,8 @@ class Srceen:
         else:
             pass
 
-    #def draw_face_on_frame(self, new_face_img):
+    # def draw_face_on_frame(self, new_face_img):
     #    self.frame[0:150, 0:150] = new_face_img
-
 
     def draw_text(self, text, coord, color):
 
@@ -163,7 +165,6 @@ class Srceen:
             except:
                 self.draw_facebox(face, (255, 0, 0))
 
-
     # draw an image with detected objects
     def draw_facebox_ID(self, face, box_color, face_label):
 
@@ -182,8 +183,8 @@ class Srceen:
 
         # Draw a label with a name below the face
         cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
-        cv2.putText(self.frame, 'ID: %s' % face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0), 1)
-
+        cv2.putText(self.frame, 'ID: %s' % face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65,
+                    (0, 0, 0), 1)
 
     def draw_faceboxes(self, faces, box_color):
 
@@ -203,7 +204,6 @@ class Srceen:
 
         # draw the box around face
         self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
-
 
 
 class VideoThread(QThread, SetSettings):
@@ -228,21 +228,24 @@ class VideoThread(QThread, SetSettings):
         self.metadatas = []
         self.new_face_img = []
         self.face_img2show = []
+        self.faces = []
 
     def run(self):
 
         # capture from web cam
         cap = cv2.VideoCapture(0)
 
+        self.frame_counter = -1
         while True:
             ret, cv_img_in = cap.read()
 
             if ret:
                 state = self.mModel.state
 
+                self.frame_counter += 1
+
                 ### Facial Image Processing
-                facal_processing = FacialImageProcessing(cv_img_in)
-                # faces_MTCNN = facal_processing.detect_face_MTCNN()
+                facal_processing = FrameProcessing(cv_img_in)
                 self.faces = facal_processing.faces
 
                 ### Face identification
@@ -261,8 +264,10 @@ class VideoThread(QThread, SetSettings):
                                 self.face_img2show = face['metadata']['face_image']
 
                 if (state == 'UserRegistrationMode') and self.timer > 3:
+
                     facal_processing.frame_quality_aware()
                     face_quality_limit = facal_processing.face_quality_limit()
+
                 else:
                     face_quality_limit = False
 
@@ -282,13 +287,10 @@ class VideoThread(QThread, SetSettings):
                     except:
                         print('ERROR in module Register New Face')
 
-
-                #print(face_quality_limit)
+                # print(self.faces)
 
                 ### Visualisation ###
                 screen = Srceen(cv_img_in, state, self.faces, self.timer, self.face_img2show)
-                # screen.draw_faceboxes(faces_MTCNN, (255, 0, 0))
-                # screen.draw_faceboxes(faces, (255, 0, 0))
                 screen.frame_transfer()
 
                 cv_img_out = screen.frame
@@ -336,9 +338,6 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
         self.initUI()
 
         self.btn_reg = self.init_registration_button()
-        # self.face_size_check = SmartBool()
-
-        # self.init_text_on_screen_app('test')
 
         self.modelIsChanged()
 
@@ -352,21 +351,13 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
 
         self.app_text, self.button_set = self.mModel.change_state
 
-        # self.text_on_screen_app(self.app_text)
         self.upgrade_button()
-        # self.setTestText(self.app_text)
-
-        self.sound_effects(self.mModel.state)
+        # sound_effects
+        # self.sound_effects(self.mModel.state)
 
     ### text ###
     def init_text_on_screen_app(self, text):
-        # create a text label
-        # self.layout = QVBoxLayout()
-        # self.label = QLabel(text)
-        # self.layout.addWidget(self.label)
-        # self.setLayout(self.layout)
 
-        ####
         self.image_label.setText(text)
 
     def upgrade_text_on_screen_app(self, text):
@@ -435,13 +426,11 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
         elif state == 'SaveNewUserMode':
             self.sound_camera()
 
-
     def sound_Greetings(self):
         sound_folder = os.path.join('Static', 'sounds')
         photo_shoot_sound_file = 'greetings3.mp3'
 
         playsound(os.path.join(sound_folder, photo_shoot_sound_file))
-
 
     def sound_camera(self):
         sound_folder = os.path.join('Static', 'sounds')

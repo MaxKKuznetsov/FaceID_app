@@ -1,6 +1,7 @@
 from Model.user import User
 from Model.user import DB_in_file
 
+from Utility.timer import elapsed_1arg, elapsed_2arg, elapsed_3arg
 
 class Model:
     """

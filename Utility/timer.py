@@ -4,16 +4,40 @@ from datetime import datetime
 from Utility.MainWinObserver import MainWinObserver
 from Utility.MainWinMeta import MainWinMeta
 
-def elapsed(func):
-    def wrapper(a, b, delay=0):
+
+def elapsed_1arg(func):
+    def wrapper(arg):
         start = datetime.now()
-        func(a, b, delay)
+        func(arg)
         end = datetime.now()
-        elapsed = (end - start).total_seconds() * 1000
-        print(f'>> функция {func.__name__} время выполнения (ms): {elapsed}')
+        elapsed = (end - start).total_seconds() * 1000000
+        print(f'>> функция {func.__name__} время выполнения (mks): {elapsed}')
 
     return wrapper
 
+def elapsed_2arg(func: object) -> object:
+    """
+
+    :rtype: object
+    """
+    def wrapper(arg1, arg2):
+        start = datetime.now()
+        func(arg1, arg2)
+        end = datetime.now()
+        elapsed = (end - start).total_seconds() * 1000000
+        print(f'>> функция {func.__name__} время выполнения (mks): {elapsed}')
+
+    return wrapper
+
+def elapsed_3arg(func):
+    def wrapper(arg1, arg2, arg3):
+        start = datetime.now()
+        func(arg1, arg2, arg3)
+        end = datetime.now()
+        elapsed = (end - start).total_seconds() * 1000000
+        print(f'>> функция {func.__name__} время выполнения (mks): {elapsed}')
+
+    return wrapper
 
 class Timer(MainWinObserver, metaclass=MainWinMeta):
     def __init__(self, inModel):
@@ -22,8 +46,8 @@ class Timer(MainWinObserver, metaclass=MainWinMeta):
         """
         self.start_timer()
 
-        #self.start_timer()
-        #self.dt = 0
+        # self.start_timer()
+        # self.dt = 0
 
         self.mModel = inModel
         self.modelIsChanged()
@@ -35,9 +59,9 @@ class Timer(MainWinObserver, metaclass=MainWinMeta):
         """
         Метод вызывается при изменении модели.
         """
-        #self.return_time()
-        #print(self.mModel.state)
-        #print('time end: %s' % str(self.return_time()))
+        # self.return_time()
+        # print(self.mModel.state)
+        # print('time end: %s' % str(self.return_time()))
         self.stop_timer()
         self.start_timer()
 
