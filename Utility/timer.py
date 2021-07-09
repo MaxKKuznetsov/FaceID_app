@@ -4,14 +4,23 @@ from datetime import datetime
 from Utility.MainWinObserver import MainWinObserver
 from Utility.MainWinMeta import MainWinMeta
 
+def elapsed(func):
+    def wrapper():
+        start = datetime.now()
+        func()
+        end = datetime.now()
+        elapsed = (end - start).total_seconds() * 1000000
+        print(f'>> функция {func.__name__} время выполнения (mks): {elapsed}')
+
+    return wrapper
 
 def elapsed_1arg(func):
     def wrapper(arg):
         start = datetime.now()
         func(arg)
         end = datetime.now()
-        elapsed = (end - start).total_seconds() * 1000000
-        print(f'>> функция {func.__name__} время выполнения (mks): {elapsed}')
+        elapsed = (end - start).total_seconds()
+        print(f'>> функция {func.__name__} время выполнения (s): {elapsed}')
 
     return wrapper
 
@@ -24,7 +33,7 @@ def elapsed_2arg(func: object) -> object:
         start = datetime.now()
         func(arg1, arg2)
         end = datetime.now()
-        elapsed = (end - start).total_seconds() * 1000000
+        elapsed = (end - start).total_seconds()
         print(f'>> функция {func.__name__} время выполнения (mks): {elapsed}')
 
     return wrapper
@@ -34,7 +43,7 @@ def elapsed_3arg(func):
         start = datetime.now()
         func(arg1, arg2, arg3)
         end = datetime.now()
-        elapsed = (end - start).total_seconds() * 1000000
+        elapsed = (end - start).total_seconds()
         print(f'>> функция {func.__name__} время выполнения (mks): {elapsed}')
 
     return wrapper
