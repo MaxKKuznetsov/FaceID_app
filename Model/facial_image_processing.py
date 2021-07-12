@@ -10,6 +10,9 @@ from datetime import datetime
 
 from mtcnn_cv2 import MTCNN
 
+from keras_facenet import FaceNet
+
+
 from Utility.timer import elapsed, elapsed_1arg, elapsed_2arg, elapsed_3arg
 
 
@@ -82,6 +85,7 @@ class FrameProcessing:
     def __init__(self, frame):
         self.frame = frame
         self.faces = []
+        self.faces_MTCNN = []
 
         self.face_locations = []
         self.face_encodings = []
@@ -89,51 +93,173 @@ class FrameProcessing:
 
         self.face_size_flag = False
 
-        self.resize_coef = 2
+        self.resize_coef = 1
+
         self.confidence = 1
         self.min_face_size = 5000
 
+    def detect_face_MTCNN_main(self, detector):
+
+        rgb_small_frame = self.frame_transfer_in()
+
+        # detect face
+        self.faces_MTCNN = self.detect_face_MTCNN(detector, rgb_small_frame)
+
+        #print('faces_MTCNN')
+        #print(self.faces_MTCNN)
+
+        if self.faces_MTCNN:
+            self.confidence = self.faces_MTCNN[0]['confidence']
+
+        # create list of objects 'face'
+        self.faces = self.face_MTCNN2face_obj(self.faces_MTCNN)
+
+
+
+        # check if there is one 'big enough' face
+        self.face_size_flag = self.face_size_test_all()
+        # check if there is one 'big enough' face
+        self.face_size_flag = self.face_size_test_all()
+
+        #encoding
+        detections, embeddings = self.FaceNet_encodings(rgb_small_frame)
+
+        print('detections')
+        print(detections)
+
+        print('embeddings')
+        print(embeddings)
+
+        # add encoding to objects 'face'
+        #self.faces = self.face_MTCNN2face_obj(self.faces_MTCNN)
+
+        return self.faces
+
+    def FaceNet_encodings(self, frame):
+
+        start = datetime.now()
+
+        embedder = FaceNet()
+
+        # Gets a detection dict for each face
+        # in an image. Each one has the bounding box and
+        # face landmarks (from mtcnn.MTCNN) along with
+        # the embedding from FaceNet.
+        #detections = embedder.extract(frame, threshold=0.95)
+        detections = []
+
+        # If you have pre-cropped images, you can skip the
+        # detection step.
+        #embeddings = embedder.embeddings(frame)
+        embeddings = []
+
+        end = datetime.now()
+        elapsed = (end - start).total_seconds()
+        print(f'>> функция face_recognition.face_locations время выполнения: {elapsed}')
+
+        return detections, embeddings
+
+
+
+    def face_MTCNN2face_obj(self, faces_MTCNN):
+        '''
+
+        :param faces_MTCNN:
+                [{'box': [382, 186, 79, 108],
+        'confidence': 0.9966862797737122,
+        'keypoints': {'left_eye': (424, 228),
+        'right_eye': (453, 224), 'nose': (452, 249),
+        'mouth_left': (428, 272), 'mouth_right': (452, 268)}}]
+
+        :return:
+        '''
+
+        faces = []
+
+        if not faces_MTCNN:
+            return faces
+
+        for face_MTCNN in faces_MTCNN:
+
+            face = Face
+
+            x, y, width, height = face_MTCNN['box']
+
+            # Scale back up face locations since the frame we detected in was scaled to 1/4 size
+            if self.resize_coef:
+                x *= self.resize_coef
+                y *= self.resize_coef
+                width *= self.resize_coef
+                height *= self.resize_coef
+
+            face.box = x, y, width, height
+            face.face_encoding = []
+            face.confidence = face_MTCNN['confidence']
+            face.face_landmarks = face_MTCNN['keypoints']
+
+            # calculate face size
+            face.size, face.face_size_flag = face.face_size_calc(face, self.min_face_size)
+
+            # add label to all faces
+            face.face_label = 'FaceRec'
+
+            faces.append(face)
+
+        return faces
+    ####################### FaceRecognition ############################
     def detect_face_FaceRecognition_main(self):
 
-        #detect face
-        self.detect_face_FaceRecognition()
-        #create list of objects 'face'
+        rgb_small_frame = self.frame_transfer_in()
+
+        # detect face
+        self.face_locations = self.face_detection_FaceRecognition(rgb_small_frame)
+        self.face_encodings, self.face_landmarks = self.face_encoding_FaceRecognition(rgb_small_frame, self.face_locations)
+        self.confidence = 1
+
+        # create list of objects 'face'
         self.faces = self.face_FaceRecognition2face_obj()
 
-        #check if there is one 'big enough' face
+        # check if there is one 'big enough' face
         self.face_size_flag = self.face_size_test_all()
 
         return self.faces
 
-    def detect_face_FaceRecognition(self):
-
+    def frame_transfer_in(self):
         # Resize frame of video to 1/4 size for faster face recognition processing
         small_frame = cv2.resize(self.frame, (0, 0), fx=1 / self.resize_coef, fy=1 / self.resize_coef)
 
         # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
         rgb_small_frame = small_frame[:, :, ::-1]
 
+        return rgb_small_frame
+
+    def face_detection_FaceRecognition(self, rgb_small_frame):
+
         # Find all the face locations and face encodings in the current frame of video
         start = datetime.now()
         # self.face_locations = face_recognition.face_locations(rgb_small_frame, model='cnn')
-        self.face_locations = face_recognition.face_locations(rgb_small_frame, model='hog')
+        face_locations = face_recognition.face_locations(rgb_small_frame, model='hog')
         end = datetime.now()
         elapsed = (end - start).total_seconds()
-        print(f'>> функция face_recognition.face_locations время выполнения: {elapsed}')
+        #print(f'>> функция face_recognition.face_locations время выполнения: {elapsed}')
+
+        return face_locations
+
+    def face_encoding_FaceRecognition(self, rgb_small_frame, face_locations):
 
         start = datetime.now()
-        self.face_encodings = face_recognition.face_encodings(rgb_small_frame, self.face_locations)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
         end = datetime.now()
         elapsed = (end - start).total_seconds()
-        print(f'>> функция face_recognition.face_encodings время выполнения: {elapsed}')
+        #print(f'>> функция face_recognition.face_encodings время выполнения: {elapsed}')
 
         start = datetime.now()
-        self.face_landmarks = face_recognition.api.face_landmarks(rgb_small_frame)
+        face_landmarks = face_recognition.api.face_landmarks(rgb_small_frame)
         elapsed = (end - start).total_seconds()
-        print(f'>> функция face_recognition.face_landmarks время выполнения: {elapsed}')
+        #print(f'>> функция face_recognition.face_landmarks время выполнения: {elapsed}')
         # self.face_landmarks = []
 
-        self.confidence = 1
+        return face_encodings, face_landmarks
 
     def face_FaceRecognition2face_obj(self):
         '''
@@ -172,47 +298,7 @@ class FrameProcessing:
             faces.append(face)
 
         return faces
-
-    def face_FaceRecognition2face_dict(self):
-        '''
-        :param face_locations:
-        [(223, 509, 331, 402)] - top, right, bottom, left
-        --> x, y, width, height = face['box']
-
-        where cv2.rectangle(frame, (x, y), (x + w, y + h)
-
-        :return:
-        [{'box': [382, 186, 79, 108],
-        'confidence': 0.9966862797737122,
-        'keypoints': {'left_eye': (424, 228),
-        'right_eye': (453, 224), 'nose': (452, 249),
-        'mouth_left': (428, 272), 'mouth_right': (452, 268)}}]
-        '''
-
-        faces = []
-        for i in range(len(self.face_locations)):
-
-            face_box = self.face_locations[i]
-            face_encoding = self.face_encodings[i]
-
-            top, right, bottom, left = face_box
-
-            # Scale back up face locations since the frame we detected in was scaled to 1/4 size
-            if self.resize_coef:
-                top *= self.resize_coef
-                right *= self.resize_coef
-                bottom *= self.resize_coef
-                left *= self.resize_coef
-
-            faces.append({'box': [left, top,
-                                  right - left,
-                                  bottom - top],
-                          'face_encoding': face_encoding,
-                          'confidence': self.confidence,
-                          'face_landmarks': self.face_landmarks,
-                          })
-
-        return faces
+    ##########################################################
 
     def transfer_img(self):
 
@@ -223,8 +309,8 @@ class FrameProcessing:
         # transfer frame to from BGR to RGB format
         self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
 
-    @elapsed_2arg
-    def detect_face_MTCNN(self, detector):
+    #@elapsed_2arg
+    def detect_face_MTCNN(self, detector, frame):
         '''
         face detection from MTCNN
         :return:
@@ -235,17 +321,14 @@ class FrameProcessing:
         'mouth_left': (428, 272), 'mouth_right': (452, 268)}}]
         '''
 
-        # start = datetime.now()
-        # detector = MTCNN()
-        # end = datetime.now()
-        # elapsed = (end - start).total_seconds()
-        # print(f'>> функция detector = MTCNN() время выполнения: {elapsed}')
 
-        faces = detector.detect_faces(self.frame)
+        start = datetime.now()
+        faces_MTCNN = detector.detect_faces(frame)
+        end = datetime.now()
+        elapsed = (end - start).total_seconds()
+        print(f'>> функция detect_face_MTCNN время выполнения: {elapsed}')
 
-        return faces
-
-
+        return faces_MTCNN
 
 
     def crop_image(self, face):
@@ -254,8 +337,6 @@ class FrameProcessing:
         face_img = self.frame[y:y + height, x:x + width]
 
         return face_img
-
-
 
     def face_size_test_all(self):
 
@@ -272,7 +353,7 @@ class FrameProcessing:
             return False
 
     # @elapsed
-    def face_identification(self, known_face_encodings, known_face_metadata):
+    def face_identification_FaceRecognition(self, known_face_encodings, known_face_metadata):
 
         # Loop through each detected face and see if it is one we have seen before
         # If so, we'll give it a label that we'll draw on top of the video.
@@ -341,7 +422,6 @@ class FrameProcessing:
         if self.faces:
             # print(faces)
             for face in self.faces:
-
                 face_confidence = round(float(face.confidence), 5)
                 # print(face_confidence)
 
@@ -418,7 +498,7 @@ class Face:
         self.confidence = 0
         self.keypoints = {}
         self.face_label = ''
-        #self.userID = 0
+        # self.userID = 0
 
         self.size = 0
         self.face_size_flag = False
@@ -431,6 +511,9 @@ class Face:
 
     @staticmethod
     def face_size_calc(face, min_face_size):
+
+        face_size_flag = False
+
         x, y, width, height = face.box
         size = width * height
 
@@ -438,5 +521,3 @@ class Face:
             face_size_flag = True
 
         return size, face_size_flag
-
-

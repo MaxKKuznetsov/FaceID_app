@@ -9,8 +9,8 @@ class DB_in_file():
     def __init__(self):
         print('loading known_face_encodings')
 
-        #self.db_file = os.path.join('DB', 'known_faces_test.dat')
-        self.db_file = os.path.join('DB', 'known_faces_test_none.dat')
+        self.db_file = os.path.join('DB', 'known_faces_test.dat')
+        #self.db_file = os.path.join('DB', 'known_faces_test_none.dat')
         self.create_empty_file()
         self.load_known_faces()
 

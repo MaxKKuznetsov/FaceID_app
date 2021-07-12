@@ -203,29 +203,19 @@ class VideoThread(QThread, SetSettings):
                 ### Facial Image Processing
                 facal_processing = FrameProcessing(cv_img_in)
 
-                self.faces = facal_processing.detect_face_FaceRecognition_main()
+                #self.faces = facal_processing.detect_face_FaceRecognition_main()
+                self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector)
 
-                # face2 = facal_processing.detect_face_MTCNN(self.mModel.detector)
-
-                ##############
-                # load our serialized model from disk
-                # print("[INFO] loading model...")
-                # net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
-                # load the input image and construct an input blob for the image
-                # by resizing to a fixed 300x300 pixels and then normalizing it
-                # (h, w) = cv_img_in.shape[:2]
-                # blob = cv2.dnn.blobFromImage(cv2.resize(cv_img_in, (300, 300)), 1.0,
-                #                             (300, 300), (104.0, 177.0, 123.0))
-                ############
 
                 ### Face identification
-                if (state == 'FaceIdentificationMode') \
-                        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
+                if state == 'test':
+                #if (state == 'FaceIdentificationMode') \
+                #        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
 
                     # face_identification
                     if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                        facal_processing.face_identification(self.mModel.known_face_encodings,
-                                                             self.mModel.known_face_metadata)
+                        facal_processing.face_identification_FaceRecognition(
+                            self.mModel.known_face_encodings, self.mModel.known_face_metadata)
 
                         self.faces = facal_processing.faces
                         for face in self.faces:
@@ -248,7 +238,7 @@ class VideoThread(QThread, SetSettings):
 
                     try:
                         NewUserID = len(self.mModel.known_face_metadata) + 1
-                        new_face_encodings = new_face['face_encoding']
+                        new_face_encodings = new_face.face_encoding
                         print('new userID: %s' % NewUserID)
 
                         self.mModel.db_from_file.register_new_face(new_face_encodings, self.new_face_img, NewUserID)
@@ -303,6 +293,7 @@ class Srceen:
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
     def frame_transfer(self):
+
 
         if self.state == 'BackgroundMode':
 
