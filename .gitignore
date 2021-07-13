@@ -3,3 +3,9 @@
 /Model/dlib_model/shape_predictor_68_face_landmarks.dat
 /_test/dlib/dlib_face_recognition_resnet_model_v1.dat
 /_test/dlib/shape_predictor_68_face_landmarks.dat
+
+/_test/OpenCV_DNN/opencv_face_detector_uint8.pb
+/_test/OpenCV_DNN/res10_300x300_ssd_iter_140000_fp16.caffemodel
+
+/_test/OpenCV_HaarCascade/haarcascade_frontalface_default.xml
+
