@@ -128,6 +128,7 @@ class FrameProcessing:
 
         return faces_dlib
 
+
     def face_encoding_dlib(self, rgb_small_frame, face_locations_dlib, dlib_shape_predictor, dlib_face_recognition_model):
 
         faces_descriptors, faces_shapes = [], []

@@ -232,6 +232,7 @@ class VideoThread(QThread, SetSettings):
                                 self.metadatas_out.emit(True)
                                 self.face_img2show = face.metadata['face_image']
 
+
                 if (state == 'UserRegistrationMode') and self.timer > 3:
 
                     facal_processing.frame_quality_aware()
