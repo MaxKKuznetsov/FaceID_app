@@ -113,7 +113,7 @@ class Srceen:
         # mouth
         frame = cv2.line(self.frame, face['keypoints']['mouth_left'], face['keypoints']['mouth_right'], color3, 3)
 
-        # test
+        # _test
         cv2.putText(self.frame, f'{Qres_frame}', (start_point[0] - 200, start_point[1]), font, 1, (0, 0, 0), 2)
         cv2.putText(self.frame, f'{Qres_face}', (start_point[0] - 200, start_point[1] + 50), font, 1, (0, 0, 0), 2)
 
