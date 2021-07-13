@@ -1,7 +1,14 @@
+import os
+
 from Model.user import User
 from Model.user import DB_in_file
 
 from mtcnn_cv2 import MTCNN
+
+import cv2
+import dlib
+from skimage import io
+from scipy.spatial import distance
 
 from Utility.timer import elapsed_1arg, elapsed_2arg, elapsed_3arg
 
@@ -33,7 +40,14 @@ class Model:
         self.known_face_encodings = self.db_from_file.known_face_encodings
         self.known_face_metadata = self.db_from_file.known_face_metadata
 
+        ### MTCNN detector
         self.detector = MTCNN()
+
+        ### dlib detector
+        self.dlib_shape_predictor = dlib.shape_predictor(os.path.join('Model', 'dlib_model', 'shape_predictor_68_face_landmarks.dat'))
+        self.dlib_face_recognition_model = dlib.face_recognition_model_v1(os.path.join('Model', 'dlib_model', 'dlib_face_recognition_resnet_model_v1.dat'))
+        self.dlib_detector = dlib.get_frontal_face_detector()
+
 
 
         # список наблюдателей
