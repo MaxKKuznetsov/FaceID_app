@@ -244,35 +244,59 @@ class FrameProcessing:
         rgb_small_frame = self.frame_transfer_in()
 
         # detect face
-        self.faces_MTCNN = self.detect_face_MTCNN(detector, rgb_small_frame)
+        faces_MTCNN = self.detect_face_MTCNN(detector, rgb_small_frame)
 
         #print('faces_MTCNN')
         #print(self.faces_MTCNN)
 
-        if self.faces_MTCNN:
-            self.confidence = self.faces_MTCNN[0]['confidence']
+        if faces_MTCNN:
+            confidence = faces_MTCNN[0]['confidence']
+
+        ###############encoding#########################
+        #detections, embeddings = self.FaceNet_encodings(rgb_small_frame)
+        embeddings = []
+
+        #print('detections')
+        #print(detections)
+
+        #print('embeddings')
+        #print(embeddings)
+        #################################################
 
         # create list of objects 'face'
-        self.faces = self.face_MTCNN2face_obj(self.faces_MTCNN)
+        self.faces = self.face_MTCNN2face_obj(faces_MTCNN, embeddings)
 
         # check if there is one 'big enough' face
         self.face_size_flag = self.face_size_test_all()
         # check if there is one 'big enough' face
         self.face_size_flag = self.face_size_test_all()
-
-        #encoding
-        detections, embeddings = self.FaceNet_encodings(rgb_small_frame)
-
-        print('detections')
-        print(detections)
-
-        print('embeddings')
-        print(embeddings)
 
         # add encoding to objects 'face'
-        #self.faces = self.face_MTCNN2face_obj(self.faces_MTCNN)
+        self.faces = self.face_MTCNN2face_obj(faces_MTCNN, embeddings)
 
         return self.faces
+
+    def detect_face_MTCNN(self, detector, frame):
+        '''
+        face detection from MTCNN
+        :return:
+        [{'box': [382, 186, 79, 108],
+        'confidence': 0.9966862797737122,
+        'keypoints': {'left_eye': (424, 228),
+        'right_eye': (453, 224), 'nose': (452, 249),
+        'mouth_left': (428, 272), 'mouth_right': (452, 268)}}]
+        '''
+
+        start = datetime.now()
+
+        #detector = MTCNN()
+        faces = detector.detect_faces(frame)
+
+        end = datetime.now()
+        elapsed = (end - start).total_seconds()
+        print(f'>> detect_faces MTCNN time: {elapsed}')
+
+        return faces
 
     def FaceNet_encodings(self, frame):
 
@@ -298,9 +322,7 @@ class FrameProcessing:
 
         return detections, embeddings
 
-
-
-    def face_MTCNN2face_obj(self, faces_MTCNN):
+    def face_MTCNN2face_obj(self, faces_MTCNN, face_encoding):
         '''
 
         :param faces_MTCNN:
@@ -332,7 +354,7 @@ class FrameProcessing:
                 height *= self.resize_coef
 
             face.box = x, y, width, height
-            face.face_encoding = []
+            face.face_encoding = face_encoding
             face.confidence = face_MTCNN['confidence']
             face.face_landmarks = face_MTCNN['keypoints']
 
