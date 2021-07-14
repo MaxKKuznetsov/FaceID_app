@@ -50,6 +50,7 @@ class Model:
 
 
 
+
         # список наблюдателей
         self._mObservers = []
 

@@ -204,11 +204,11 @@ class VideoThread(QThread, SetSettings):
                 facal_processing = FrameProcessing(cv_img_in)
 
                 #self.faces = facal_processing.detect_face_FaceRecognition_main()
-                self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector)
-                #self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
-                #                                                    self.mModel.dlib_face_recognition_model,
-                #                                                    self.mModel.dlib_detector,
-                #                                                    )
+                #self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector)
+                self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
+                                                                    self.mModel.dlib_face_recognition_model,
+                                                                    self.mModel.dlib_detector,
+                                                                    )
 
 
                 ### Face identification
@@ -217,14 +217,14 @@ class VideoThread(QThread, SetSettings):
                 #        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
 
                     # face_identification - FaceRecognition
-                    if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                        facal_processing.face_identification_FaceRecognition(
-                            self.mModel.known_face_encodings, self.mModel.known_face_metadata)
+                    #if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
+                    #    facal_processing.face_identification_FaceRecognition(
+                    #        self.mModel.known_face_encodings, self.mModel.known_face_metadata)
 
                     # face_identification - dlib
-                    #if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                    #    facal_processing.face_identification_dlib(
-                    #        self.mModel.known_face_encodings, self.mModel.known_face_metadata)
+                    if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
+                        facal_processing.face_identification_dlib(
+                            self.mModel.known_face_encodings, self.mModel.known_face_metadata)
 
                         self.faces = facal_processing.faces
                         for face in self.faces:

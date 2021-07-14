@@ -4,6 +4,10 @@ import numpy as np
 import pickle
 import os
 import math
+import dlib
+
+
+from imutils import face_utils
 
 import time
 from datetime import datetime
@@ -107,6 +111,7 @@ class FrameProcessing:
         face_locations_dlib = self.face_detection_dlib(rgb_small_frame, dlib_detector)
         face_descriptors_dlib, face_shape_dlib = self.face_encoding_dlib(rgb_small_frame, face_locations_dlib,
                                                                          dlib_shape_predictor, dlib_face_recognition_model)
+
         self.confidence = 1
 
         # create list of objects 'face'
@@ -136,6 +141,7 @@ class FrameProcessing:
             #print("Detection {}: Left: {} Top: {} Right: {} Bottom: {}".format(
             #    k, d.left(), d.top(), d.right(), d.bottom()))
 
+
             start = datetime.now()
             face_shape_i = dlib_shape_predictor(rgb_small_frame, d)
             end = datetime.now()
@@ -143,11 +149,15 @@ class FrameProcessing:
             print(f'>> dlib_shape_predictor time: {elapsed}')
             ##############
 
+            # Let's generate the aligned image using get_face_chip
+            face_chip = dlib.get_face_chip(rgb_small_frame, face_shape_i)
+            #face_chip = face_utils.facealigner.FaceAligner(dlib_shape_predictor, desiredFaceWidth=112, desiredLeftEye=(0.3, 0.3))
+
             start = datetime.now()
-            face_descriptor_i = dlib_face_recognition_model.compute_face_descriptor(rgb_small_frame, face_shape_i)
+            face_descriptor_i = dlib_face_recognition_model.compute_face_descriptor(face_chip)
             end = datetime.now()
             elapsed = (end - start).total_seconds()
-            print(f'>> dlib_face_recognition_model time: {elapsed}')
+            print(f'>> dlib compute_face_descriptor time: {elapsed}')
 
             faces_descriptors.append(face_descriptor_i)
             faces_shapes.append(face_shape_i)
@@ -386,6 +396,9 @@ class FrameProcessing:
         return self.faces
 
     def frame_transfer_in(self):
+
+
+
         # Resize frame of video to 1/4 size for faster face recognition processing
         if self.resize_coef and (self.resize_coef != 1):
             small_frame = cv2.resize(self.frame, (0, 0), fx=1 / self.resize_coef, fy=1 / self.resize_coef)
