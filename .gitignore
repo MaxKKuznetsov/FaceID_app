@@ -2,8 +2,8 @@
 
 /_test/
 
-/Model/dlib_model/dlib_face_recognition_resnet_model_v1.dat
-/Model/dlib_model/shape_predictor_68_face_landmarks.dat
+/Model/models/dlib_model/dlib_face_recognition_resnet_model_v1.dat
+/Model/models/dlib_model/shape_predictor_68_face_landmarks.dat
 /_test/dlib/dlib_face_recognition_resnet_model_v1.dat
 /_test/dlib/shape_predictor_68_face_landmarks.dat
 
