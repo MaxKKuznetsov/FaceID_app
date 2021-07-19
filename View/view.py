@@ -203,21 +203,21 @@ class VideoThread(QThread, SetSettings):
                 ### Facial Image Processing
                 facal_processing = FrameProcessing(cv_img_in)
 
-                #self.faces = facal_processing.detect_face_FaceRecognition_main()
+                self.faces = facal_processing.detect_face_FaceRecognition_main()
                 #self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector_MTCNN)
-                self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
-                                                                    self.mModel.dlib_face_recognition_model,
-                                                                    self.mModel.dlib_detector,
-                                                                    )
+                #self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
+                #                                                    self.mModel.dlib_face_recognition_model,
+                #                                                    self.mModel.dlib_detector,
+                #                                                    )
 
                 #self.faces = facal_processing.detect_face_onnx_main()
 
 
 
                 ### Face identification
-                if state == 'test':
-                #if (state == 'FaceIdentificationMode') \
-                #        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
+                #if state == 'test':
+                if (state == 'FaceIdentificationMode') \
+                        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
 
                     # face_identification - FaceRecognition
                     #if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
