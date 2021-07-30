@@ -48,6 +48,13 @@ def elapsed_3arg(func):
 
     return wrapper
 
+def timer4detector(detector, detect_fn, images, *args):
+    start = time.time()
+    faces = detect_fn(detector, images, *args)
+    elapsed = time.time() - start
+    print(f', {elapsed:.3f} seconds')
+    return faces, elapsed
+
 class Timer(MainWinObserver, metaclass=MainWinMeta):
     def __init__(self, inModel):
         """

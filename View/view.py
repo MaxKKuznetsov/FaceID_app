@@ -18,6 +18,7 @@ from Model.facial_image_processing import FrameProcessing, Face
 # from Model.facial_image_processing import face_FaceRecognition2face_MTCNN
 # from Model.facial_image_processing import detect_face, face_FaceRecognition2face_MTCNN
 
+
 from Utility.timer import elapsed_1arg, elapsed_2arg, elapsed_3arg
 
 
@@ -203,21 +204,27 @@ class VideoThread(QThread, SetSettings):
                 ### Facial Image Processing
                 facal_processing = FrameProcessing(cv_img_in)
 
-                self.faces = facal_processing.detect_face_FaceRecognition_main()
+                #self.faces = facal_processing.detect_face_FaceRecognition_main()
                 #self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector_MTCNN)
                 #self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
                 #                                                    self.mModel.dlib_face_recognition_model,
                 #                                                    self.mModel.dlib_detector,
                 #                                                    )
 
-                #self.faces = facal_processing.detect_face_onnx_main()
+                self.faces = facal_processing.detect_face_onnx_main(self.tf_model_for_embeddings.ort_session,
+                                                                    self.tf_model_for_embeddings.input_name,
+                                                                    self.tf_model_for_embeddings.face_aligner,
+                                                                    self.tf_model_for_embeddings.images_placeholder,
+                                                                    self.tf_model_for_embeddings.embeddings,
+                                                                    self.tf_model_for_embeddings.phase_train_placeholder,
+                                                                    self.tf_model_for_embeddings.embedding_size)
 
 
 
                 ### Face identification
-                #if state == 'test':
-                if (state == 'FaceIdentificationMode') \
-                        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
+                if state == 'test':
+                #if (state == 'FaceIdentificationMode') \
+                #        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
 
                     # face_identification - FaceRecognition
                     #if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
@@ -307,6 +314,10 @@ class Srceen:
 
     def frame_transfer(self):
 
+        #print(self.state)
+        #for face in self.faces:
+        #    print(face.box)
+
 
         if self.state == 'BackgroundMode':
 
@@ -361,7 +372,7 @@ class Srceen:
             self.draw_faceboxes_ID(self.faces, (0, 255, 0))
 
         else:
-            pass
+            self.draw_faceboxes_ID(self.faces, (255, 0, 0))
 
     def draw_text(self, text, coord, color):
 

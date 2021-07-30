@@ -6,7 +6,6 @@ import os
 import math
 import dlib
 
-
 from imutils import face_utils
 
 import time
@@ -17,6 +16,8 @@ from mtcnn_cv2 import MTCNN
 from keras_facenet import FaceNet
 
 from scipy.spatial import distance
+
+
 
 from Utility.timer import elapsed, elapsed_1arg, elapsed_2arg, elapsed_3arg
 
@@ -103,6 +104,231 @@ class FrameProcessing:
         self.confidence = 1
         self.min_face_size = 5000
 
+    #####
+    def detect_face_onnx_main(self, ort_session, input_name, face_aligner,
+                              images_placeholder, embeddings, phase_train_placeholder, embedding_size):
+
+        h, w, _ = self.frame.shape
+        img_go = self.preprocessing()
+
+        confidences, boxes = ort_session.run(None, {input_name: img_go})
+        boxes, labels, probs = self.predict(w, h, confidences, boxes, 0.7)
+
+        aligned_faces = self.faces_alline_all(face_aligner, boxes)
+
+        # images_placeholder, phase_train_placeholder, sess, embeddings, embedding_size = tf_model_for_embeddings.init_embeddings()
+        # face_encoding = self.face_encoding_onnx(aligned_faces, images_placeholder, phase_train_placeholder, sess, embeddings, embedding_size)
+        face_encoding = []
+
+        self.faces = self.face_onnx2face_obj(confidences, boxes, aligned_faces)
+
+        return self.faces
+
+    def face_encoding_onnx(self, aligned_faces, images_placeholder, phase_train_placeholder, sess, embeddings,
+                           embedding_size):
+
+        face_encoding = []
+
+        # face embedding
+        if len(aligned_faces) > 0:
+            predictions = []
+
+            faces = np.array(aligned_faces)
+            # feed_dict = {images_placeholder: aligned_faces, phase_train_placeholder: False}
+
+            # start = datetime.now()
+            # embeds = sess.run(embeddings, feed_dict=feed_dict)
+            # end = datetime.now()
+            # elapsed = (end - start).total_seconds()
+            # print(f'>> embeddings: sess.run  {elapsed}')
+
+        return face_encoding
+
+    def faces_alline_all(self, face_aligner, boxes):
+
+        aligned_faces = []
+        boxes[boxes < 0] = 0
+        for i in range(boxes.shape[0]):
+            box = boxes[i, :]
+            x1, y1, x2, y2 = box
+
+            gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+            aligned_face = face_aligner.align(self.frame, gray, dlib.rectangle(left=x1, top=y1, right=x2, bottom=y2))
+            aligned_face = cv2.resize(aligned_face, (112, 112))
+
+            aligned_face = aligned_face - 127.5
+            aligned_face = aligned_face * 0.0078125
+
+            aligned_faces.append(aligned_face)
+
+        return aligned_faces
+
+    def preprocessing(self):
+
+        # preprocess img acquired
+        img = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, (640, 480))
+        img_mean = np.array([127, 127, 127])
+        img = (img - img_mean) / 128
+        img = np.transpose(img, [2, 0, 1])
+        img = np.expand_dims(img, axis=0)
+        img = img.astype(np.float32)
+
+        return img
+
+    def face_onnx2face_obj(self, confidences, boxes, aligned_faces):
+
+        faces = []
+
+        for i in range(boxes.shape[0]):
+
+            face = Face()
+
+            face_box = boxes[i, :]
+            left, top, right, bottom = face_box
+
+            # Scale back up face locations since the frame we detected in was scaled to 1/resize_coef size
+            if self.resize_coef and (self.resize_coef != 1):
+                top *= self.resize_coef
+                right *= self.resize_coef
+                bottom *= self.resize_coef
+                left *= self.resize_coef
+
+            face.box = [left, top, right - left, bottom - top]
+            face.aligned_face = aligned_faces[i]
+
+            # face.face_encoding = face_encoding
+            # face.confidence = self.confidence
+            # face.face_landmarks = face_shape
+
+            # calculate face size
+            face.size, face.face_size_flag = face.face_size_calc(face, self.min_face_size)
+
+            # add label to all faces
+            face.face_label = 'onnx'
+
+            faces.append(face)
+
+        return faces
+
+    def area_of(self, left_top, right_bottom):
+        """
+        Compute the areas of rectangles given two corners.
+        Args:
+            left_top (N, 2): left top corner.
+            right_bottom (N, 2): right bottom corner.
+        Returns:
+            area (N): return the area.
+        """
+        hw = np.clip(right_bottom - left_top, 0.0, None)
+        return hw[..., 0] * hw[..., 1]
+
+    def iou_of(self, boxes0, boxes1, eps=1e-5):
+        """
+        Return intersection-over-union (Jaccard index) of boxes.
+        Args:
+            boxes0 (N, 4): ground truth boxes.
+            boxes1 (N or 1, 4): predicted boxes.
+            eps: a small number to avoid 0 as denominator.
+        Returns:
+            iou (N): IoU values.
+        """
+        overlap_left_top = np.maximum(boxes0[..., :2], boxes1[..., :2])
+        overlap_right_bottom = np.minimum(boxes0[..., 2:], boxes1[..., 2:])
+
+        overlap_area = self.area_of(overlap_left_top, overlap_right_bottom)
+        area0 = self.area_of(boxes0[..., :2], boxes0[..., 2:])
+        area1 = self.area_of(boxes1[..., :2], boxes1[..., 2:])
+
+        return overlap_area / (area0 + area1 - overlap_area + eps)
+
+    def hard_nms(self, box_scores, iou_threshold, top_k=-1, candidate_size=200):
+        """
+        Perform hard non-maximum-supression to filter out boxes with iou greater
+        than threshold
+        Args:
+            box_scores (N, 5): boxes in corner-form and probabilities.
+            iou_threshold: intersection over union threshold.
+            top_k: keep top_k results. If k <= 0, keep all the results.
+            candidate_size: only consider the candidates with the highest scores.
+        Returns:
+            picked: a list of indexes of the kept boxes
+        """
+        scores = box_scores[:, -1]
+        boxes = box_scores[:, :-1]
+        picked = []
+        indexes = np.argsort(scores)
+        indexes = indexes[-candidate_size:]
+
+        while len(indexes) > 0:
+            current = indexes[-1]
+            picked.append(current)
+
+            if 0 < top_k == len(picked) or len(indexes) == 1:
+                break
+
+            current_box = boxes[current, :]
+            indexes = indexes[:-1]
+            rest_boxes = boxes[indexes, :]
+            iou = self.iou_of(
+                rest_boxes,
+                np.expand_dims(current_box, axis=0),
+            )
+
+            indexes = indexes[iou <= iou_threshold]
+
+        return box_scores[picked, :]
+
+    def predict(self, width, height, confidences, boxes, prob_threshold, iou_threshold=0.5, top_k=-1):
+        """
+        Select boxes that contain human faces
+        Args:
+            width: original image width
+            height: original image height
+            confidences (N, 2): confidence array
+            boxes (N, 4): boxes array in corner-form
+            iou_threshold: intersection over union threshold.
+            top_k: keep top_k results. If k <= 0, keep all the results.
+        Returns:
+            boxes (k, 4): an array of boxes kept
+            labels (k): an array of labels for each boxes kept
+            probs (k): an array of probabilities for each boxes being in corresponding labels
+        """
+        boxes = boxes[0]
+        confidences = confidences[0]
+        picked_box_probs = []
+        picked_labels = []
+
+        for class_index in range(1, confidences.shape[1]):
+
+            probs = confidences[:, class_index]
+            mask = probs > prob_threshold
+            probs = probs[mask]
+
+            if probs.shape[0] == 0:
+                continue
+
+            subset_boxes = boxes[mask, :]
+            box_probs = np.concatenate([subset_boxes, probs.reshape(-1, 1)], axis=1)
+            box_probs = self.hard_nms(box_probs,
+                                      iou_threshold=iou_threshold,
+                                      top_k=top_k,
+                                      )
+
+            picked_box_probs.append(box_probs)
+            picked_labels.extend([class_index] * box_probs.shape[0])
+
+        if not picked_box_probs:
+            return np.array([]), np.array([]), np.array([])
+
+        picked_box_probs = np.concatenate(picked_box_probs)
+        picked_box_probs[:, 0] *= width
+        picked_box_probs[:, 1] *= height
+        picked_box_probs[:, 2] *= width
+        picked_box_probs[:, 3] *= height
+
+        return picked_box_probs[:, :4].astype(np.int32), np.array(picked_labels), picked_box_probs[:, 4]
+
     ######### dlib conveyor ##########
     def detect_face_dlib_main(self, dlib_shape_predictor, dlib_face_recognition_model, dlib_detector):
         rgb_small_frame = self.frame_transfer_in()
@@ -110,7 +336,8 @@ class FrameProcessing:
         # detect face
         face_locations_dlib = self.face_detection_dlib(rgb_small_frame, dlib_detector)
         face_descriptors_dlib, face_shape_dlib = self.face_encoding_dlib(rgb_small_frame, face_locations_dlib,
-                                                                         dlib_shape_predictor, dlib_face_recognition_model)
+                                                                         dlib_shape_predictor,
+                                                                         dlib_face_recognition_model)
 
         self.confidence = 1
 
@@ -122,7 +349,6 @@ class FrameProcessing:
 
         return self.faces
 
-
     def face_detection_dlib(self, rgb_small_frame, dlib_detector):
 
         start = datetime.now()
@@ -133,14 +359,13 @@ class FrameProcessing:
 
         return faces_dlib
 
-
-    def face_encoding_dlib(self, rgb_small_frame, face_locations_dlib, dlib_shape_predictor, dlib_face_recognition_model):
+    def face_encoding_dlib(self, rgb_small_frame, face_locations_dlib, dlib_shape_predictor,
+                           dlib_face_recognition_model):
 
         faces_descriptors, faces_shapes = [], []
         for k, d in enumerate(face_locations_dlib):
-            #print("Detection {}: Left: {} Top: {} Right: {} Bottom: {}".format(
+            # print("Detection {}: Left: {} Top: {} Right: {} Bottom: {}".format(
             #    k, d.left(), d.top(), d.right(), d.bottom()))
-
 
             start = datetime.now()
             face_shape_i = dlib_shape_predictor(rgb_small_frame, d)
@@ -151,7 +376,7 @@ class FrameProcessing:
 
             # Let's generate the aligned image using get_face_chip
             face_chip = dlib.get_face_chip(rgb_small_frame, face_shape_i)
-            #face_chip = face_utils.facealigner.FaceAligner(dlib_shape_predictor, desiredFaceWidth=112, desiredLeftEye=(0.3, 0.3))
+            # face_chip = face_utils.facealigner.FaceAligner(dlib_shape_predictor, desiredFaceWidth=112, desiredLeftEye=(0.3, 0.3))
 
             start = datetime.now()
             face_descriptor_i = dlib_face_recognition_model.compute_face_descriptor(face_chip)
@@ -224,7 +449,6 @@ class FrameProcessing:
         if len(known_face_encodings) == 0:
             return metadata
 
-
         face_distances = []
         for j in range(len(known_face_encodings)):
             face_distances.append(distance.euclidean(face_encoding, known_face_encodings[j]))
@@ -246,8 +470,6 @@ class FrameProcessing:
 
     #####################################
 
-
-
     ######### MTCNN+ conveyor ##########
     def detect_face_MTCNN_main(self, detector):
 
@@ -256,21 +478,21 @@ class FrameProcessing:
         # detect face
         faces_MTCNN = self.detect_face_MTCNN(detector, rgb_small_frame)
 
-        #print('faces_MTCNN')
-        #print(self.faces_MTCNN)
+        # print('faces_MTCNN')
+        # print(self.faces_MTCNN)
 
         if faces_MTCNN:
             confidence = faces_MTCNN[0]['confidence']
 
         ###############encoding#########################
-        #detections, embeddings = self.FaceNet_encodings(rgb_small_frame)
+        # detections, embeddings = self.FaceNet_encodings(rgb_small_frame)
         embeddings = []
 
-        #print('detections')
-        #print(detections)
+        # print('detections')
+        # print(detections)
 
-        #print('embeddings')
-        #print(embeddings)
+        # print('embeddings')
+        # print(embeddings)
         #################################################
 
         # create list of objects 'face'
@@ -299,7 +521,7 @@ class FrameProcessing:
 
         start = datetime.now()
 
-        #detector = MTCNN()
+        # detector = MTCNN()
         faces = detector.detect_faces(frame)
 
         end = datetime.now()
@@ -312,18 +534,18 @@ class FrameProcessing:
 
         start = datetime.now()
 
-        #embedder = FaceNet()
+        # embedder = FaceNet()
 
         # Gets a detection dict for each face
         # in an image. Each one has the bounding box and
         # face landmarks (from mtcnn.MTCNN) along with
         # the embedding from FaceNet.
-        #detections = embedder.extract(frame, threshold=0.95)
+        # detections = embedder.extract(frame, threshold=0.95)
         detections = []
 
         # If you have pre-cropped images, you can skip the
         # detection step.
-        #embeddings = embedder.embeddings(frame)
+        # embeddings = embedder.embeddings(frame)
         embeddings = []
 
         end = datetime.now()
@@ -377,6 +599,7 @@ class FrameProcessing:
             faces.append(face)
 
         return faces
+
     ####################### FaceRecognition conveyor ############################
     def detect_face_FaceRecognition_main(self):
 
@@ -384,7 +607,8 @@ class FrameProcessing:
 
         # detect face
         self.face_locations = self.face_detection_FaceRecognition(rgb_small_frame)
-        self.face_encodings, self.face_landmarks = self.face_encoding_FaceRecognition(rgb_small_frame, self.face_locations)
+        self.face_encodings, self.face_landmarks = self.face_encoding_FaceRecognition(rgb_small_frame,
+                                                                                      self.face_locations)
         self.confidence = 1
 
         # create list of objects 'face'
@@ -396,8 +620,6 @@ class FrameProcessing:
         return self.faces
 
     def frame_transfer_in(self):
-
-
 
         # Resize frame of video to 1/4 size for faster face recognition processing
         if self.resize_coef and (self.resize_coef != 1):
@@ -418,7 +640,7 @@ class FrameProcessing:
         face_locations = face_recognition.face_locations(rgb_small_frame, model='hog')
         end = datetime.now()
         elapsed = (end - start).total_seconds()
-        #print(f'>> функция face_recognition.face_locations время выполнения: {elapsed}')
+        # print(f'>> функция face_recognition.face_locations время выполнения: {elapsed}')
 
         return face_locations
 
@@ -428,12 +650,12 @@ class FrameProcessing:
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
         end = datetime.now()
         elapsed = (end - start).total_seconds()
-        #print(f'>> функция face_recognition.face_encodings время выполнения: {elapsed}')
+        # print(f'>> функция face_recognition.face_encodings время выполнения: {elapsed}')
 
         start = datetime.now()
         face_landmarks = face_recognition.api.face_landmarks(rgb_small_frame)
         elapsed = (end - start).total_seconds()
-        #print(f'>> функция face_recognition.face_landmarks время выполнения: {elapsed}')
+        # print(f'>> функция face_recognition.face_landmarks время выполнения: {elapsed}')
         # self.face_landmarks = []
 
         return face_encodings, face_landmarks
@@ -475,6 +697,7 @@ class FrameProcessing:
             faces.append(face)
 
         return faces
+
     ##########################################################
 
     def transfer_img(self):
@@ -485,9 +708,6 @@ class FrameProcessing:
 
         # transfer frame to from BGR to RGB format
         self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-
-
-
 
     def crop_image(self, face):
 
@@ -653,6 +873,8 @@ class Face:
         self.face_encoding = []
         self.face_landmarks = []
 
+        self.aligned_face = []
+
         self.confidence = 0
         self.keypoints = {}
         self.face_label = ''
@@ -669,7 +891,6 @@ class Face:
 
     @staticmethod
     def face_size_calc(face, min_face_size):
-
         face_size_flag = False
 
         x, y, width, height = face.box
@@ -679,3 +900,7 @@ class Face:
             face_size_flag = True
 
         return size, face_size_flag
+
+
+
+
