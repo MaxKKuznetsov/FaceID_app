@@ -56,8 +56,24 @@ class Model:
         # self.dlib_face_recognition_model = dlib.face_recognition_model_v1(os.path.join('Model', 'models', 'dlib_model', 'dlib_face_recognition_resnet_model_v1.dat'))
         # self.dlib_detector = dlib.get_frontal_face_detector()
 
-        #TF_Model
-        self.tf_model_for_embeddings = TF_Model_for_Embeddings
+        ### TF_Model ###
+        self.tf_model_for_embeddings = TF_Model_for_Embeddings()
+        #tf_model_for_embeddings.onnx_detection()
+
+        ### onnx model
+        #self.onnx_path = os.path.join('Model', 'models', 'onnx', 'ultra_light_640.onnx')
+        #self.shape_predictor_path = os.path.join('Model', 'models', 'dlib_model',
+        #                                         'shape_predictor_5_face_landmarks.dat')
+        #
+        #self.onnx_model = onnx.load(self.onnx_path)
+        #self.predictor = prepare(self.onnx_model)
+        #self.ort_session = ort.InferenceSession(self.onnx_path)
+        #self.input_name = self.ort_session.get_inputs()[0].name
+        #
+        #self.shape_predictor = dlib.shape_predictor(self.shape_predictor_path)
+        #self.face_aligner = face_utils.facealigner.FaceAligner(self.shape_predictor, desiredFaceWidth=112,
+        #                                                       desiredLeftEye=(0.3, 0.3))
+        #################
 
         # список наблюдателей
         self._mObservers = []
@@ -110,33 +126,45 @@ class Model:
 class TF_Model_for_Embeddings:
 
     def __init__(self):
-
         ### onnx model
         self.onnx_path = os.path.join('Model', 'models', 'onnx', 'ultra_light_640.onnx')
         self.shape_predictor_path = os.path.join('Model', 'models', 'dlib_model',
                                                  'shape_predictor_5_face_landmarks.dat')
 
-        self.onnx_model = onnx.load(self.onnx_path)
-        self.predictor = prepare(self.onnx_model)
-        self.ort_session = ort.InferenceSession(self.onnx_path)
-        self.input_name = self.ort_session.get_inputs()[0].name
+        self.ort_session, self.input_name, self.face_aligner = self.onnx_detection()
+        #self.images_placeholder, self.embeddings, self.phase_train_placeholder, self.embedding_size, self.sess = self.tf_embeddings()
 
-        self.shape_predictor = dlib.shape_predictor(self.shape_predictor_path)
-        self.face_aligner = face_utils.facealigner.FaceAligner(self.shape_predictor, desiredFaceWidth=112,
-                                                          desiredLeftEye=(0.3, 0.3))
+    def onnx_detection(self):
 
+        onnx_model = onnx.load(self.onnx_path)
+        predictor = prepare(onnx_model)
+        ort_session = ort.InferenceSession(self.onnx_path)
+        input_name = ort_session.get_inputs()[0].name
+
+        shape_predictor = dlib.shape_predictor(self.shape_predictor_path)
+        face_aligner = face_utils.facealigner.FaceAligner(shape_predictor, desiredFaceWidth=112,
+                                                               desiredLeftEye=(0.3, 0.3))
+
+        return ort_session, input_name, face_aligner
+
+    '''
+    def tf_embeddings(self):
 
         with tf.Graph().as_default():
             with tf.Session() as sess:
-                saver = tf.train.import_meta_graph('mfn.ckpt.meta')
-                saver.restore(sess, 'mfn.ckpt')
 
-                self.images_placeholder = tf.get_default_graph().get_tensor_by_name("input:0")
+                saver_meta_path = self.onnx_path = os.path.join('DB', 'mfn_ckpt', 'mfn.ckpt.meta')
+                saver_restore_path = self.onnx_path = os.path.join('DB', 'mfn_ckpt', 'mfn.ckpt')
 
-                self.embeddings = tf.get_default_graph().get_tensor_by_name("embeddings:0")
+                saver = tf.train.import_meta_graph(saver_meta_path)
+                saver.restore(sess, saver_restore_path)
 
-                self.phase_train_placeholder = tf.get_default_graph().get_tensor_by_name("phase_train:0")
-                self.embedding_size = self.embeddings.get_shape()[1]
+                images_placeholder = tf.get_default_graph().get_tensor_by_name("input:0")
 
+                embeddings = tf.get_default_graph().get_tensor_by_name("embeddings:0")
 
+                phase_train_placeholder = tf.get_default_graph().get_tensor_by_name("phase_train:0")
+                embedding_size = embeddings.get_shape()[1]
 
+        return images_placeholder, embeddings, phase_train_placeholder, embedding_size, sess
+    '''

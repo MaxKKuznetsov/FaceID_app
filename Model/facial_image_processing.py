@@ -106,7 +106,7 @@ class FrameProcessing:
 
     #####
     def detect_face_onnx_main(self, ort_session, input_name, face_aligner,
-                              images_placeholder, embeddings, phase_train_placeholder, embedding_size):
+        images_placeholder, embeddings, phase_train_placeholder, sess) -> object:
 
         h, w, _ = self.frame.shape
         img_go = self.preprocessing()
@@ -116,33 +116,35 @@ class FrameProcessing:
 
         aligned_faces = self.faces_alline_all(face_aligner, boxes)
 
-        # images_placeholder, phase_train_placeholder, sess, embeddings, embedding_size = tf_model_for_embeddings.init_embeddings()
-        # face_encoding = self.face_encoding_onnx(aligned_faces, images_placeholder, phase_train_placeholder, sess, embeddings, embedding_size)
-        face_encoding = []
+        face_encodings = self.face_encoding_onnx(aligned_faces, images_placeholder, phase_train_placeholder, sess, embeddings)
 
-        self.faces = self.face_onnx2face_obj(confidences, boxes, aligned_faces)
+        self.faces = self.face_onnx2face_obj(boxes, aligned_faces, face_encodings, probs)
+
+        #print('-face_encoding--->')
+        #print(len(self.faces[0].face_encoding))
+        #print(self.faces[0].face_encoding)
+        #print('---')
 
         return self.faces
 
-    def face_encoding_onnx(self, aligned_faces, images_placeholder, phase_train_placeholder, sess, embeddings,
-                           embedding_size):
+    def face_encoding_onnx(self, aligned_faces, images_placeholder, phase_train_placeholder, sess, embeddings):
 
-        face_encoding = []
+        embeds = []
 
         # face embedding
         if len(aligned_faces) > 0:
             predictions = []
 
             faces = np.array(aligned_faces)
-            # feed_dict = {images_placeholder: aligned_faces, phase_train_placeholder: False}
+            feed_dict = {images_placeholder: aligned_faces, phase_train_placeholder: False}
 
-            # start = datetime.now()
-            # embeds = sess.run(embeddings, feed_dict=feed_dict)
-            # end = datetime.now()
-            # elapsed = (end - start).total_seconds()
-            # print(f'>> embeddings: sess.run  {elapsed}')
+            #start = datetime.now()
+            embeds = sess.run(embeddings, feed_dict=feed_dict)
+            #end = datetime.now()
+            #elapsed = (end - start).total_seconds()
+            #print(f'>> embeddings: sess.run  {elapsed}')
 
-        return face_encoding
+        return embeds
 
     def faces_alline_all(self, face_aligner, boxes):
 
@@ -176,7 +178,7 @@ class FrameProcessing:
 
         return img
 
-    def face_onnx2face_obj(self, confidences, boxes, aligned_faces):
+    def face_onnx2face_obj(self, boxes, aligned_faces, face_encodings, probs):
 
         faces = []
 
@@ -197,8 +199,8 @@ class FrameProcessing:
             face.box = [left, top, right - left, bottom - top]
             face.aligned_face = aligned_faces[i]
 
-            # face.face_encoding = face_encoding
-            # face.confidence = self.confidence
+            face.face_encoding = face_encodings[i]
+            face.confidence = probs[i]
             # face.face_landmarks = face_shape
 
             # calculate face size
@@ -210,6 +212,20 @@ class FrameProcessing:
             faces.append(face)
 
         return faces
+
+    def face_identification_onnx(self, embeds, saved_embeds, threshold):
+
+        # prediciton using distance
+        for embedding in embeds:
+            diff = np.subtract(saved_embeds, embedding)
+            dist = np.sum(np.square(diff), 1)
+            idx = np.argmin(dist)
+            if dist[idx] < threshold:
+                predictions.append(names[idx])
+            else:
+                predictions.append("unknown")
+
+        return []
 
     def area_of(self, left_top, right_bottom):
         """
@@ -816,17 +832,20 @@ class FrameProcessing:
 
         frame_height, frame_width, channels = self.frame.shape
 
-        # print(frame_width, frame_height)
-
         if not self.faces:
+            #print('not self.faces')
             return False
         elif len(self.faces) > 1:
+            #print('self.faces > 1')
             return False
         elif not self.face_position_limit(self.faces[0], frame_height, frame_width):
+            print('not self.face_position_limit')
             return False
         elif self.faces[0].size < 3000:
+            #print('not faces[0].size < 3000')
             return False
         elif self.faces[0].size > 100000:
+            #print('not faces[0].size > 100000')
             return False
         # elif faces[0]['focus'] < 50:
         #    return False
@@ -836,13 +855,17 @@ class FrameProcessing:
         #    return False
 
         elif self.faces[0].face_confidence > 0.999:
+            pass
             # print('!!!!! face_confidence > 0.999 !!!!!')
-            return True
+            #return True
         else:
             return False
 
     def face_position_limit(self, face, frame_height, frame_width):
         x, y, face_width, face_height = face.box
+
+        #print('-------')
+        #print(x, x + face_width, y, y + face_height)
 
         if not (x > frame_width / 4) and ((x + face_width) < (frame_width - frame_width / 4)):
             return False
