@@ -184,6 +184,7 @@ class VideoThread(QThread, SetSettings):
         self.mController = mController
 
         self.timer = 0
+        self.face_quality_limit = False
 
         self.metadatas = []
         self.new_face_img = []
@@ -201,7 +202,6 @@ class VideoThread(QThread, SetSettings):
                 saver_restore_path = os.path.join('Model', 'models', 'mfn', 'mfn.ckpt')
 
                 saver = tf.train.import_meta_graph(saver_meta_path)
-
                 saver.restore(sess, saver_restore_path)
 
                 images_placeholder = tf.get_default_graph().get_tensor_by_name("input:0")
@@ -209,7 +209,7 @@ class VideoThread(QThread, SetSettings):
                 embeddings = tf.get_default_graph().get_tensor_by_name("embeddings:0")
 
                 phase_train_placeholder = tf.get_default_graph().get_tensor_by_name("phase_train:0")
-                embedding_size = embeddings.get_shape()[1]
+                #embedding_size = embeddings.get_shape()[1]
 
                 ################
 
@@ -222,6 +222,7 @@ class VideoThread(QThread, SetSettings):
 
                     if ret:
                         state = self.mModel.state
+                        #print(state)
 
                         self.frame_counter += 1
 
@@ -243,58 +244,62 @@ class VideoThread(QThread, SetSettings):
                             embeddings,
                             phase_train_placeholder,
                             sess
-                            )
+                        )
+
+                        #for face in self.faces:
+                        #    print(face.size, face.face_size_flag)
 
                         ### Face identification
                         # if state == 'test':
                         if (state == 'FaceIdentificationMode') \
                                 or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
-                            pass
-
+                            '''
                             # face_identification - FaceRecognition
                             # if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
                             #    facal_processing.face_identification_FaceRecognition(
                             #        self.mModel.known_face_encodings, self.mModel.known_face_metadata)
+                            '''
 
+                            '''
                             # face_identification - dlib
                             # if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
                             #    facal_processing.face_identification_dlib(
                             #        self.mModel.known_face_encodings, self.mModel.known_face_metadata)
-
                             '''
+
                             # face_identification - onnx
-                            if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                                facal_processing.face_identification_onnx(
-                                    self.mModel.known_face_encodings, self.mModel.known_face_metadata)
+                            if self.faces and self.mModel.known_face_encodings and self.mModel.known_face_metadata:
+                                facal_processing.face_identification_onnx(self.mModel.known_face_encodings,
+                                                                          self.mModel.known_face_metadata)
 
                                 self.faces = facal_processing.faces
+
                                 for face in self.faces:
                                     if face.metadata:
                                         self.metadatas_out.emit(True)
                                         self.face_img2show = face.metadata['face_image']
-                            '''
 
                         if (state == 'UserRegistrationMode') and self.timer > 1:
 
                             facal_processing.frame_quality_aware()
-                            face_quality_limit = facal_processing.face_quality_limit()
+                            self.face_quality_limit = facal_processing.face_quality_limit()
 
                         else:
-                            face_quality_limit = False
+                            self.face_quality_limit = False
 
-                        if face_quality_limit:
+                        if self.face_quality_limit and self.faces:
+
                             new_face = self.faces[0]
-
-                            self.new_face_img = facal_processing.new_face_image_mk(new_face)
-                            self.face_img2show = self.new_face_img
+                            self.face_img2show = new_face.face_image
 
                             try:
                                 NewUserID = len(self.mModel.known_face_metadata) + 1
                                 new_face_encodings = new_face.face_encoding
                                 print('new userID: %s' % NewUserID)
 
-                                self.mModel.db_from_file.register_new_face(new_face_encodings, self.new_face_img,
+                                self.mModel.db_from_file.register_new_face(new_face_encodings, self.face_img2show,
                                                                            NewUserID)
+
                                 self.mModel.db_from_file.save_known_faces()
 
                             except:
@@ -319,7 +324,7 @@ class VideoThread(QThread, SetSettings):
                         self.check_face_size.emit(facal_processing.face_size_flag)
 
                         # emit face_quality_limit
-                        self.emit_face_quality_limit.emit(face_quality_limit)
+                        self.emit_face_quality_limit.emit(self.face_quality_limit)
 
                     else:
                         print("Can't receive frame (stream end?). Exiting ...")
@@ -373,6 +378,16 @@ class Srceen:
             self.draw_faceboxes(self.faces, self.box_color)
             self.frame = self.draw_text('Look at the camera: %i' % self.timer, (170, 30), (0, 0, 255))
 
+            # limits
+            frame_height, frame_width, channels = self.frame.shape
+            lx1, lx2, ly1, ly2 = frame_width // 3, frame_width - frame_width // 3, frame_height // 4, frame_height - frame_height // 4
+
+            self.frame = cv2.line(self.frame, (lx1, 0), (lx1, frame_height), (0, 255, 0), 1)
+            self.frame = cv2.line(self.frame, (lx2, 0), (lx2, frame_height), (0, 255, 0), 1)
+
+            self.frame = cv2.line(self.frame, (0, ly1), (frame_width, ly1), (0, 255, 0), 1)
+            self.frame = cv2.line(self.frame, (0, ly2), (frame_width, ly2), (0, 255, 0), 1)
+
         elif self.state == 'GreetingsMode':
             # print(self.faces)
             # print(self.metadatas)
@@ -382,7 +397,7 @@ class Srceen:
 
             self.draw_faceboxes_ID(self.faces, self.box_color)
 
-            self.frame[0:150, 0:150] = self.face_img
+            self.frame[0:112, 0:112] = self.face_img
 
 
         elif self.state == 'AlreadyRegistered':
@@ -397,8 +412,11 @@ class Srceen:
         elif self.state == 'SaveNewUserMode':
             self.box_color = (0, 0, 255)
 
-            # self.draw_face_on_frame(self.new_face_img)
-            self.frame[0:150, 0:150] = self.face_img
+            # draw_face_on_frame
+            # print(self.face_img)
+            # print(self.face_img.shape)
+
+            self.frame[0:112, 0:112] = self.face_img
 
             self.draw_text('Registration successful', (150, 70), self.box_color)
             self.draw_faceboxes_ID(self.faces, (0, 255, 0))
@@ -435,7 +453,7 @@ class Srceen:
     def draw_ellipse(self):
 
         cv2.ellipse(self.frame, self.center_coordinates, self.axesLength,
-                    self.angle, self.startAngle, self.endAngle, self.color, self.thickness)
+                    self.angle, self.startAngle, self.endAngle, self.color, 2)
 
     def blur(self):
 

@@ -17,8 +17,6 @@ from keras_facenet import FaceNet
 
 from scipy.spatial import distance
 
-
-
 from Utility.timer import elapsed, elapsed_1arg, elapsed_2arg, elapsed_3arg
 
 
@@ -103,10 +101,11 @@ class FrameProcessing:
 
         self.confidence = 1
         self.min_face_size = 5000
+        #self.min_face_size = 12544 #(112*112)
 
     #####
     def detect_face_onnx_main(self, ort_session, input_name, face_aligner,
-        images_placeholder, embeddings, phase_train_placeholder, sess) -> object:
+                              images_placeholder, embeddings, phase_train_placeholder, sess) -> object:
 
         h, w, _ = self.frame.shape
         img_go = self.preprocessing()
@@ -116,14 +115,15 @@ class FrameProcessing:
 
         aligned_faces = self.faces_alline_all(face_aligner, boxes)
 
-        face_encodings = self.face_encoding_onnx(aligned_faces, images_placeholder, phase_train_placeholder, sess, embeddings)
+        face_encodings = self.face_encoding_onnx(aligned_faces, images_placeholder, phase_train_placeholder, sess,
+                                                 embeddings)
+
+
 
         self.faces = self.face_onnx2face_obj(boxes, aligned_faces, face_encodings, probs)
 
-        #print('-face_encoding--->')
-        #print(len(self.faces[0].face_encoding))
-        #print(self.faces[0].face_encoding)
-        #print('---')
+        # check if there is one 'big enough' face
+        self.face_size_flag = self.face_size_test_all()
 
         return self.faces
 
@@ -138,11 +138,11 @@ class FrameProcessing:
             faces = np.array(aligned_faces)
             feed_dict = {images_placeholder: aligned_faces, phase_train_placeholder: False}
 
-            #start = datetime.now()
+            # start = datetime.now()
             embeds = sess.run(embeddings, feed_dict=feed_dict)
-            #end = datetime.now()
-            #elapsed = (end - start).total_seconds()
-            #print(f'>> embeddings: sess.run  {elapsed}')
+            # end = datetime.now()
+            # elapsed = (end - start).total_seconds()
+            # print(f'>> embeddings: sess.run  {elapsed}')
 
         return embeds
 
@@ -199,8 +199,11 @@ class FrameProcessing:
             face.box = [left, top, right - left, bottom - top]
             face.aligned_face = aligned_faces[i]
 
+            face.face_image = self.new_face_image_mk_box([left, top, right - left, bottom - top])
+
             face.face_encoding = face_encodings[i]
             face.confidence = probs[i]
+
             # face.face_landmarks = face_shape
 
             # calculate face size
@@ -213,19 +216,49 @@ class FrameProcessing:
 
         return faces
 
-    def face_identification_onnx(self, embeds, saved_embeds, threshold):
+    def face_identification_onnx(self, known_face_encodings, known_face_metadata):
 
-        # prediciton using distance
-        for embedding in embeds:
-            diff = np.subtract(saved_embeds, embedding)
-            dist = np.sum(np.square(diff), 1)
-            idx = np.argmin(dist)
-            if dist[idx] < threshold:
-                predictions.append(names[idx])
-            else:
-                predictions.append("unknown")
+        # Loop through each detected face and see if it is one we have seen before
+        # If so, we'll give it a label that we'll draw on top of the video.
+        metadatas = []
+        for face in self.faces:
+            # Find all the face locations and face encodings in the current frame of video
+            face_encoding = face.face_encoding
 
-        return []
+            # See if this face is in our list of known faces.
+            metadata = self.lookup_known_face_onnx(face_encoding, known_face_encodings, known_face_metadata)
+            face.metadata = metadata
+
+
+    def lookup_known_face_onnx(self, face_encoding, known_face_encodings, known_face_metadata):
+        '''
+
+        :param face_encoding:
+        :param known_face_encodings:
+        :param known_face_metadata:
+        :return:
+        '''
+
+        threshold = 0.63
+
+        metadata = None
+
+        # If our known face list is empty, just return nothing since we can't possibly have seen this face.
+        if len(known_face_encodings) == 0:
+            return metadata
+
+        diff = np.subtract(known_face_encodings, face_encoding)
+
+        dist = np.sum(np.square(diff), 1)
+        idx = np.argmin(dist)
+
+        if dist[idx] < threshold:
+            # If we have a match, look up the metadata we've saved for it (like the first time we saw it, etc)
+            metadata = known_face_metadata[idx]
+
+            metadata["face_distance"] = dist[idx]
+
+        return metadata
 
     def area_of(self, left_top, right_bottom):
         """
@@ -839,13 +872,13 @@ class FrameProcessing:
             #print('self.faces > 1')
             return False
         elif not self.face_position_limit(self.faces[0], frame_height, frame_width):
-            print('not self.face_position_limit')
+            #print('self.face_position_limit')
             return False
-        elif self.faces[0].size < 3000:
-            #print('not faces[0].size < 3000')
+        elif self.faces[0].size < 12544: #112*112
+            #print('not faces[0].size')
             return False
         elif self.faces[0].size > 100000:
-            #print('not faces[0].size > 100000')
+            #print('not faces[0].size')
             return False
         # elif faces[0]['focus'] < 50:
         #    return False
@@ -854,25 +887,38 @@ class FrameProcessing:
         # elif (faces[0]['brightness'] < 0.1) or (faces[0]['brightness'] > 0.9):
         #    return False
 
-        elif self.faces[0].face_confidence > 0.999:
-            pass
-            # print('!!!!! face_confidence > 0.999 !!!!!')
-            #return True
-        else:
+        elif self.faces[0].face_confidence < 0.99:
+            print('!!!!! face_confidence < 0.999 !!!!!')
             return False
+        else:
+            return True
 
     def face_position_limit(self, face, frame_height, frame_width):
         x, y, face_width, face_height = face.box
 
-        #print('-------')
-        #print(x, x + face_width, y, y + face_height)
+        x1, x2, y1, y2 = x, x + face_width, y, y + face_height
 
-        if not (x > frame_width / 4) and ((x + face_width) < (frame_width - frame_width / 4)):
-            return False
-        elif not (y > frame_height / 4) and ((y + face_height) < (frame_height - frame_height / 4)):
+        # limits
+        lx1, lx2, ly1, ly2 = frame_width // 3, frame_width - frame_width // 3, frame_height // 4, frame_height - frame_height // 4
+
+        #print(x1, x2, y1, y2)
+        #print(lx1, lx2, ly1, ly2)
+
+        if (x1 < lx1) or (x2 > lx2) or (y1 < ly1) or (y2 > ly2):
             return False
         else:
             return True
+
+    def new_face_image_mk_box(self, box):
+
+        face2save_size = (112, 112)
+
+        # Grab the image of the the face from the current frame of video
+        x, y, face_width, face_height = box
+        face_image = self.frame[y:y + face_height, x:x + face_width]
+        face_image = cv2.resize(face_image, face2save_size)
+
+        return face_image
 
     def new_face_image_mk(self, face):
 
@@ -923,7 +969,3 @@ class Face:
             face_size_flag = True
 
         return size, face_size_flag
-
-
-
-

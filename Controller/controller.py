@@ -48,14 +48,13 @@ class Controller:
 
         self.mView.show()
 
-
     def save_new_user(self, face_quality_limit_flag):
         if face_quality_limit_flag:
             self._state = 'SaveNewUserMode'
             self.mModel.change_state = self._state
 
     def save_new_user_out(self, time):
-        if (self._state == 'SaveNewUserMode') and time > 7:
+        if (self._state == 'SaveNewUserMode') and time > 5:
             self._state = 'FaceIdentificationMode'
             self.mModel.change_state = self._state
 
@@ -90,8 +89,6 @@ class Controller:
 
 
     def face_size_change_state(self, face_size_flag):
-
-        # print(face_size_flag)
 
         if not face_size_flag and (self._state == 'FaceIdentificationMode'):
             self._state = 'BackgroundMode'
