@@ -49,11 +49,15 @@ class Controller:
         self.mView.show()
 
     def save_new_user(self, face_quality_limit_flag):
+
+        print('save_new_user <-  face_quality_limit_flag: %s' % face_quality_limit_flag)
         if face_quality_limit_flag:
             self._state = 'SaveNewUserMode'
             self.mModel.change_state = self._state
 
     def save_new_user_out(self, time):
+
+        #print('save_new_user_out <-  face_quality_limit_flag: %s' % str(time))
         if (self._state == 'SaveNewUserMode') and time > 5:
             self._state = 'FaceIdentificationMode'
             self.mModel.change_state = self._state

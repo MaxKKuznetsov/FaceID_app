@@ -124,6 +124,8 @@ class FrameProcessing:
 
         # check if there is one 'big enough' face
         self.face_size_flag = self.face_size_test_all()
+        #print('self.face_size_flag: %s' % self.face_size_flag)
+
 
         return self.faces
 

@@ -184,7 +184,6 @@ class VideoThread(QThread, SetSettings):
         self.mController = mController
 
         self.timer = 0
-        self.face_quality_limit = False
 
         self.metadatas = []
         self.new_face_img = []
@@ -229,7 +228,7 @@ class VideoThread(QThread, SetSettings):
                         ### Facial Image Processing
                         facal_processing = FrameProcessing(cv_img_in)
 
-                        # self.faces = facal_processing.detect_face_FaceRecognition_main()
+                        #self.faces = facal_processing.detect_face_FaceRecognition_main()
                         # self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector_MTCNN)
                         # self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
                         #                                                    self.mModel.dlib_face_recognition_model,
@@ -282,12 +281,12 @@ class VideoThread(QThread, SetSettings):
                         if (state == 'UserRegistrationMode') and self.timer > 1:
 
                             facal_processing.frame_quality_aware()
-                            self.face_quality_limit = facal_processing.face_quality_limit()
+                            face_quality_limit = facal_processing.face_quality_limit()
 
                         else:
-                            self.face_quality_limit = False
+                            face_quality_limit = False
 
-                        if self.face_quality_limit and self.faces:
+                        if face_quality_limit and self.faces:
 
                             new_face = self.faces[0]
                             self.face_img2show = new_face.face_image
@@ -305,7 +304,8 @@ class VideoThread(QThread, SetSettings):
                             except:
                                 print('ERROR in module Register New Face')
 
-                        # print(self.faces)
+                            # emit face_quality_limit
+                            self.emit_face_quality_limit.emit(face_quality_limit)
 
                         ### Visualisation ###
                         screen = Srceen(cv_img_in, state, self.faces, self.timer, self.face_img2show)
@@ -321,10 +321,8 @@ class VideoThread(QThread, SetSettings):
                         self.timer_time.emit(self.timer)
 
                         # emit fase size
+                        #print(facal_processing.face_size_flag)
                         self.check_face_size.emit(facal_processing.face_size_flag)
-
-                        # emit face_quality_limit
-                        self.emit_face_quality_limit.emit(self.face_quality_limit)
 
                     else:
                         print("Can't receive frame (stream end?). Exiting ...")
