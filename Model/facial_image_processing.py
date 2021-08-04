@@ -241,7 +241,8 @@ class FrameProcessing:
         :return:
         '''
 
-        threshold = 0.63
+        #threshold = 0.63 #!!!
+        threshold = 0.60
 
         metadata = None
 
@@ -254,11 +255,16 @@ class FrameProcessing:
         dist = np.sum(np.square(diff), 1)
         idx = np.argmin(dist)
 
+        print('all distances:')
+        print(dist)
+
         if dist[idx] < threshold:
             # If we have a match, look up the metadata we've saved for it (like the first time we saw it, etc)
             metadata = known_face_metadata[idx]
 
             metadata["face_distance"] = dist[idx]
+
+            #print('distance: %s' % str(dist[idx]))
 
         return metadata
 

@@ -208,7 +208,7 @@ class VideoThread(QThread, SetSettings):
                 embeddings = tf.get_default_graph().get_tensor_by_name("embeddings:0")
 
                 phase_train_placeholder = tf.get_default_graph().get_tensor_by_name("phase_train:0")
-                #embedding_size = embeddings.get_shape()[1]
+                # embedding_size = embeddings.get_shape()[1]
 
                 ################
 
@@ -221,14 +221,14 @@ class VideoThread(QThread, SetSettings):
 
                     if ret:
                         state = self.mModel.state
-                        #print(state)
+                        # print(state)
 
                         self.frame_counter += 1
 
                         ### Facial Image Processing
                         facal_processing = FrameProcessing(cv_img_in)
 
-                        #self.faces = facal_processing.detect_face_FaceRecognition_main()
+                        # self.faces = facal_processing.detect_face_FaceRecognition_main()
                         # self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector_MTCNN)
                         # self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
                         #                                                    self.mModel.dlib_face_recognition_model,
@@ -245,7 +245,7 @@ class VideoThread(QThread, SetSettings):
                             sess
                         )
 
-                        #for face in self.faces:
+                        # for face in self.faces:
                         #    print(face.size, face.face_size_flag)
 
                         ### Face identification
@@ -321,7 +321,7 @@ class VideoThread(QThread, SetSettings):
                         self.timer_time.emit(self.timer)
 
                         # emit fase size
-                        #print(facal_processing.face_size_flag)
+                        # print(facal_processing.face_size_flag)
                         self.check_face_size.emit(facal_processing.face_size_flag)
 
                     else:
@@ -397,6 +397,7 @@ class Srceen:
 
             self.frame[0:112, 0:112] = self.face_img
 
+            self.draw_distance(self.faces)
 
         elif self.state == 'AlreadyRegistered':
             # print(self.faces)
@@ -463,6 +464,19 @@ class Srceen:
                            (255, 255, 255), -1)
 
         self.frame = np.where(mask == np.array([255, 255, 255]), self.frame, blurred_img)
+
+    def draw_distance(self, faces):
+
+        for face in faces:
+            try:
+                face_label = face.metadata['face_distance']
+                x, y, width, height = face.box
+
+                cv2.putText(self.frame, 'dist: %.2f' % face_label, (x + 6, y + height + 55), cv2.FONT_HERSHEY_DUPLEX, 0.65,
+                            (0, 0, 0), 1)
+
+            except:
+                self.draw_facebox(face, (255, 0, 0))
 
     def draw_faceboxes_ID(self, faces, box_color):
 
