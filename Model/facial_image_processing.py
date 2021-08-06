@@ -6,6 +6,8 @@ import os
 import math
 import dlib
 
+import tensorflow as tf
+
 from imutils import face_utils
 
 import time
@@ -255,8 +257,8 @@ class FrameProcessing:
         dist = np.sum(np.square(diff), 1)
         idx = np.argmin(dist)
 
-        print('all distances:')
-        print(dist)
+        #print('all distances:')
+        #print(dist)
 
         if dist[idx] < threshold:
             # If we have a match, look up the metadata we've saved for it (like the first time we saw it, etc)
@@ -848,8 +850,8 @@ class FrameProcessing:
         varianceOfLaplacian = FrameQEstimation.varianceOfLaplacian(self.frame)
 
         # FaceQEstimation
-        # FaceQEstimation = FaceQNetQualityEstimator(frame)
-        # FaceQuality = FaceQEstimation.estimate_quality_qnet_1frame()
+        #FaceQEstimation = FaceQNetQualityEstimator(self.frame)
+        #FaceQuality = FaceQEstimation.estimate_quality_qnet_1frame()
         FaceQuality = 1
 
         # save result in faces
@@ -939,7 +941,6 @@ class FrameProcessing:
 
         return face_image
 
-
 class Face:
     '''
     object face
@@ -977,3 +978,41 @@ class Face:
             face_size_flag = True
 
         return size, face_size_flag
+
+
+
+# QNet estimator
+class FaceQNetQualityEstimator:
+    #  No-Reference, end-to-end Quality Assessment (QA) based on deep learning
+    # model_qnet = '../models/FaceQnet.h5'
+
+    model_qnet = os.path.join('Model', 'models', 'FaceQnet', 'FaceQnet.h5')
+
+    def __init__(self):
+        tf.keras.models.load_model(self.model_qnet)
+        # self.images = video
+        # self.labels = video_labels
+
+    def estimate_quality_qnet(self, video, video_labels):
+        X = []
+        for frame in video:
+            img = cv2.resize(frame, (224, 224))
+            X.append(img)
+
+        X = np.array(X, dtype=np.float32)
+        # Extract quality scores for the samples
+        # m = 0.7
+        # s = 0.5
+        batch_size = 1
+        scores = self.model.predict(X, batch_size=batch_size, verbose=1)
+
+        frames_scores = zip(video_labels, scores)
+
+        return frames_scores
+
+    def get_best_frames(self, video, video_labels, k=5):
+        """ k - the number of frames to return"""
+        frames_scores = self.estimate_quality_qnet(video, video_labels)
+        # Return first k values
+        sorted_frames_scores = sorted(frames_scores, key=lambda x: x[1], reverse=True)
+        return sorted_frames_scores[:k]

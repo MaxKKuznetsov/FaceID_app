@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 import sys
-
+import time
 import tensorflow as tf
 
 from PyQt5 import QtGui
@@ -217,7 +217,14 @@ class VideoThread(QThread, SetSettings):
 
                 self.frame_counter = -1
                 while True:
+
+                    start_time = time.time()
+
                     ret, cv_img_in = cap.read()
+
+                    # flip image!
+                    #self.frame = cv2.flip(self.frame, 1)
+                    cv_img_in = cv2.flip(cv_img_in, 1)
 
                     if ret:
                         state = self.mModel.state
@@ -328,6 +335,8 @@ class VideoThread(QThread, SetSettings):
                         print("Can't receive frame (stream end?). Exiting ...")
                         break
 
+                    print("FPS: ", 1.0 / (time.time() - start_time))  # FPS = 1 / time to process loop
+
                 # shut down capture system
                 cap.release()
                 cv2.destroyAllWindows()
@@ -359,6 +368,7 @@ class Srceen:
             self.box_color = (255, 0, 0)
             self.draw_faceboxes(self.faces, self.box_color)
             self.frame = self.draw_text('BackgroundMode', (170, 30), (0, 0, 255))
+            self.frame = cv2.flip(self.frame, 1)
 
         elif self.state == 'FaceIdentificationMode':
             self.box_color = (255, 0, 0)
@@ -423,10 +433,14 @@ class Srceen:
         else:
             self.draw_faceboxes_ID(self.faces, (255, 0, 0))
 
+
+
+
     def draw_text(self, text, coord, color):
 
         # font
-        font = cv2.FONT_HERSHEY_SIMPLEX
+        #font = cv2.FONT_HERSHEY_SIMPLEX
+        font = cv2.FONT_HERSHEY_DUPLEX
         # org
         org = coord
         # fontScale
@@ -445,7 +459,7 @@ class Srceen:
         self.angle, self.startAngle, self.endAngle = 0, 0, 360
 
         # Red color in BGR
-        self.color = (0, 255, 0)
+        self.color = (10, 255, 15)
         # Line thickness of 5 px
         self.thickness = 1
 
@@ -485,7 +499,7 @@ class Srceen:
                 face_label = str(face.metadata['userID'])
                 self.draw_facebox_ID(face, box_color, face_label)
             except:
-                self.draw_facebox(face, (255, 0, 0))
+                self.draw_facebox(face, (255, 10, 10))
 
     # draw an image with detected objects
     def draw_facebox_ID(self, face, box_color, face_label):
