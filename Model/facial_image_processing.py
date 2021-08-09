@@ -1,3 +1,5 @@
+from typing import List, Any
+
 import cv2
 import face_recognition
 import numpy as np
@@ -87,6 +89,7 @@ class FrameProcessing:
     '''
     Open CV image: one frame from
     '''
+    faces: List[Any]
 
     def __init__(self, frame):
         self.frame = frame

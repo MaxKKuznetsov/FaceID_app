@@ -78,7 +78,7 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
 
         self.upgrade_button()
         # sound_effects
-        # self.sound_effects(self.mModel.state)
+        self.sound_effects(self.mModel.state)
 
     ### text ###
     def init_text_on_screen_app(self, text):
@@ -255,8 +255,11 @@ class VideoThread(QThread, SetSettings):
                         # for face in self.faces:
                         #    print(face.size, face.face_size_flag)
 
+                        #print(self.mModel.known_face_encodings)
+                        #print(self.mModel.known_face_metadata)
+
                         ### Face identification
-                        # if state == 'test':
+                        #if state == 'test':
                         if (state == 'FaceIdentificationMode') \
                                 or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
                             '''
@@ -277,6 +280,7 @@ class VideoThread(QThread, SetSettings):
                             if self.faces and self.mModel.known_face_encodings and self.mModel.known_face_metadata:
                                 facal_processing.face_identification_onnx(self.mModel.known_face_encodings,
                                                                           self.mModel.known_face_metadata)
+
 
                                 self.faces = facal_processing.faces
 
@@ -314,8 +318,10 @@ class VideoThread(QThread, SetSettings):
                             # emit face_quality_limit
                             self.emit_face_quality_limit.emit(face_quality_limit)
 
+                        fps = 1.0 / (time.time() - start_time)
+                        #print("FPS: ", fps)  # FPS = 1 / time to process loop
                         ### Visualisation ###
-                        screen = Srceen(cv_img_in, state, self.faces, self.timer, self.face_img2show)
+                        screen = Srceen(cv_img_in, state, self.faces, self.timer, self.face_img2show, fps)
                         screen.frame_transfer()
 
                         cv_img_out = screen.frame
@@ -335,7 +341,7 @@ class VideoThread(QThread, SetSettings):
                         print("Can't receive frame (stream end?). Exiting ...")
                         break
 
-                    print("FPS: ", 1.0 / (time.time() - start_time))  # FPS = 1 / time to process loop
+
 
                 # shut down capture system
                 cap.release()
@@ -347,7 +353,7 @@ class Srceen:
     OpenCV frame
     '''
 
-    def __init__(self, frame, state, faces, timer, face_img):
+    def __init__(self, frame, state, faces, timer, face_img, fps):
 
         self.box_color = (0, 0, 0)
         self.frame = frame
@@ -357,18 +363,21 @@ class Srceen:
         self.face_img = face_img
         self.frame_height, self.frame_width, self.frame_channels = self.frame.shape
 
+        self.fps = fps
+
     def frame_transfer(self):
 
         # print(self.state)
         # for face in self.faces:
         #    print(face.box)
 
+        self.frame = self.draw_text('FPS: %.2f' % self.fps, (450, 430), (50, 255, 25))
+
         if self.state == 'BackgroundMode':
 
             self.box_color = (255, 0, 0)
             self.draw_faceboxes(self.faces, self.box_color)
             self.frame = self.draw_text('BackgroundMode', (170, 30), (0, 0, 255))
-            self.frame = cv2.flip(self.frame, 1)
 
         elif self.state == 'FaceIdentificationMode':
             self.box_color = (255, 0, 0)
@@ -434,8 +443,6 @@ class Srceen:
             self.draw_faceboxes_ID(self.faces, (255, 0, 0))
 
 
-
-
     def draw_text(self, text, coord, color):
 
         # font
@@ -486,8 +493,7 @@ class Srceen:
                 face_label = face.metadata['face_distance']
                 x, y, width, height = face.box
 
-                cv2.putText(self.frame, 'dist: %.2f' % face_label, (x + 6, y + height + 55), cv2.FONT_HERSHEY_DUPLEX, 0.65,
-                            (0, 0, 0), 1)
+                cv2.putText(self.frame, 'dist: %.2f' % face_label, (x + 6, y + height + 10), cv2.FONT_HERSHEY_DUPLEX, 0.3, (0, 0, 0), 1)
 
             except:
                 self.draw_facebox(face, (255, 0, 0))
@@ -518,9 +524,16 @@ class Srceen:
         self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
 
         # Draw a label with a name below the face
-        cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
-        cv2.putText(self.frame, 'ID: %s' % face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65,
-                    (0, 0, 0), 1)
+        #cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
+        #cv2.putText(self.frame, 'ID: %s' % face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65,
+        #            (0, 0, 0), 1)
+
+        text = 'ID: %s' % face_label
+        cv2.rectangle(self.frame, (x, y + height), (x + width, y + height), (0, 255, 0), 2)
+        # Draw a label with a name below the face
+        cv2.rectangle(self.frame, (x, y + height - 20), (x + width, y + height), (0, 255, 0), cv2.FILLED)
+        font = cv2.FONT_HERSHEY_DUPLEX
+        cv2.putText(self.frame, text, (x + 6, y + height - 6), font, 0.3, (0, 0, 0), 1)
 
     def draw_faceboxes(self, faces, box_color):
 

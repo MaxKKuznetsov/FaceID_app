@@ -2,6 +2,7 @@ import os
 
 from Model.user import User
 from Model.user import DB_in_file
+from Model.user import DB_Qt_QSQLITE
 
 from mtcnn_cv2 import MTCNN
 
@@ -44,7 +45,8 @@ class Model:
                            }
 
         #### User Data from file
-        self.db_from_file = DB_in_file()
+        #self.db_from_file = DB_in_file()
+        self.db_from_file = DB_Qt_QSQLITE()
         self.known_face_encodings = self.db_from_file.known_face_encodings
         self.known_face_metadata = self.db_from_file.known_face_metadata
 
