@@ -17,14 +17,18 @@ from PyQt5.QtWidgets import (
     QTableView,
 )
 
+
 class DB_Qt_QSQLITE():
     def __init__(self):
 
         self.db_file = os.path.join('DB', 'test_db.sqlite')
 
+        self.shape_face_image = (112, 112, 3)
+        self.shape_face_encoding = (192,)
+
         print('connecting with DB %s' % self.db_file)
 
-        #self.create_empty_bd()
+        # self.create_empty_bd()
 
         db_connection_flag = self.createConnection()
 
@@ -88,13 +92,17 @@ class DB_Qt_QSQLITE():
 
         try:
             while query.next():
-                name, face_image, face_encoding = query.value(name_ind), query.value(face_image_ind), query.value(face_encoding_ind)
+                name, face_image, face_encoding = query.value(name_ind), query.value(face_image_ind), query.value(
+                    face_encoding_ind)
 
-                #face_image = pickle.loads(face_image)
-                #face_encoding = pickle.loads(face_encoding)
+                face_image = self.convert_array(face_image).reshape(self.shape_face_image)
+                face_encoding = self.convert_array(face_encoding).reshape(self.shape_face_encoding)
 
-                face_image = np.fromstring(face_image)
-                face_encoding = np.fromstring(face_encoding)
+                # face_image = pickle.loads(face_image)
+                # face_encoding = pickle.loads(face_encoding)
+
+                #face_image = np.fromstring(face_image)
+                #face_encoding = np.fromstring(face_encoding)
 
                 print('loading:')
                 print(type(face_image))
@@ -103,7 +111,7 @@ class DB_Qt_QSQLITE():
                 self.known_face_encodings.append(face_encoding)
                 self.known_face_metadata.append({'userID': name, 'face_image': face_image})
 
-                #print(name, face_image, face_encoding)
+                # print(name, face_image, face_encoding)
 
         except:
             print("No previous face data found - starting with a blank known face list.")
@@ -117,24 +125,35 @@ class DB_Qt_QSQLITE():
 
     def save_known_faces(self):
 
-        #face_data = [self.known_face_encodings, self.known_face_metadata]
-        #pickle.dump(face_data, face_data_file)
+        # face_data = [self.known_face_encodings, self.known_face_metadata]
+        # pickle.dump(face_data, face_data_file)
 
-        #con = QSqlDatabase.addDatabase("QSQLITE")
-        #con.setDatabaseName(self.db_file)
-        #con.open()
+        # con = QSqlDatabase.addDatabase("QSQLITE")
+        # con.setDatabaseName(self.db_file)
+        # con.open()
         new_face_encoding = self.known_face_encodings[-1]
         new_face_metadata = self.known_face_metadata[-1]
 
         new_name = new_face_metadata['userID']
         new_face_image = new_face_metadata['face_image']
-        print(f'{new_name}; ' + f'{new_face_image}; ' + f'{new_face_encoding}; ')
 
-        #new_face_image = pickle.dumps(new_face_image)
-        #new_face_encoding = pickle.dumps(new_face_encoding)
+        #self.shape_face_image = new_face_image.shape
+        #self.shape_face_encoding = new_face_encoding.shape
 
-        new_face_image = new_face_image.tostring()
-        new_face_encoding = new_face_encoding.tostring()
+        #print('self.shape_face_image')
+        #print(self.shape_face_image)
+
+        #print('self.shape_face_encoding')
+        #print(self.shape_face_encoding)
+
+        # new_face_image = pickle.dumps(new_face_image)
+        # new_face_encoding = pickle.dumps(new_face_encoding)
+
+        #new_face_image = new_face_image.tostring()
+        #new_face_encoding = new_face_encoding.tostring()
+
+        new_face_image = self.adapt_array(new_face_image)
+        new_face_encoding = self.adapt_array(new_face_encoding)
 
         print('saving:')
         print(type(new_face_image))
@@ -148,8 +167,7 @@ class DB_Qt_QSQLITE():
 
         print("Face ID saved to file")
 
-
-        #con.close()
+        # con.close()
 
     def register_new_face(self, new_face_encoding, new_face_image, userID):
         """
@@ -171,15 +189,23 @@ class DB_Qt_QSQLITE():
             "face_distance": 0,
         })
 
+    @staticmethod
+    def adapt_array(arr):
+        return arr.astype('float32').tobytes()
+
+    @staticmethod
+    def convert_array(text):
+        return np.frombuffer(text, dtype='float32')
+
 
 class DB_in_file():
 
     def __init__(self):
         print('loading known_face_encodings')
 
-        #self.db_file = os.path.join('DB', 'known_faces.dat')
+        # self.db_file = os.path.join('DB', 'known_faces.dat')
         self.db_file = os.path.join('DB', 'known_faces_test.dat')
-        #self.db_file = os.path.join('DB', 'known_faces_test_none.dat')
+        # self.db_file = os.path.join('DB', 'known_faces_test_none.dat')
         self.create_empty_file()
         self.load_known_faces()
 
@@ -230,7 +256,6 @@ class DB_in_file():
         })
 
 
-
 class User:
     '''
     User ID data drom file
@@ -238,7 +263,3 @@ class User:
 
     def __init__(self):
         pass
-
-
-
-

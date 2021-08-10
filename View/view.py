@@ -307,6 +307,10 @@ class VideoThread(QThread, SetSettings):
                                 new_face_encodings = new_face.face_encoding
                                 print('new userID: %s' % NewUserID)
 
+                                #print('--------------')
+                                #print(self.face_img2show)
+                                #print('--------------')
+
                                 self.mModel.db_from_file.register_new_face(new_face_encodings, self.face_img2show,
                                                                            NewUserID)
 
