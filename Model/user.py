@@ -1,6 +1,10 @@
 import os
 from datetime import datetime, timedelta
 import pickle
+import io
+
+import sqlite3
+from sqlite3 import Error
 
 import numpy as np
 
@@ -21,103 +25,104 @@ from PyQt5.QtWidgets import (
 class DB_Qt_QSQLITE():
     def __init__(self):
 
-        self.db_file = os.path.join('DB', 'test_db.sqlite')
+        self.db_file = os.path.join('DB', 'sqlite3', 'test_db.sqlite')
 
         self.shape_face_image = (112, 112, 3)
         self.shape_face_encoding = (192,)
 
         print('connecting with DB %s' % self.db_file)
 
-        # self.create_empty_bd()
 
-        db_connection_flag = self.createConnection()
+        # create table
+        # self.create_empty_table()
 
-        if not db_connection_flag:
-            print('ERROR: db connection faled')
-            sys.exit(1)
+        # Converts np.array to TEXT when inserting
+        sqlite3.register_adapter(np.ndarray, self.adapt_array)
+
+        # Converts TEXT to np.array when selecting
+        sqlite3.register_converter("array", self.convert_array)
 
         self.load_known_faces()
 
-    def createConnection(self):
 
-        self.con = QSqlDatabase.addDatabase("QSQLITE")
-        self.con.setDatabaseName(self.db_file)
-        self.con.open()
+    def create_connection(self, path):
+        connection = None
+        try:
+            connection = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+            print("Connection to SQLite DB successful")
+        except Error as e:
+            print(f"The error '{e}' occurred")
 
-        if not self.con.open():
-            QMessageBox.critical(
-                None,
-                "QTableView Example - Error!",
-                "Database Error: %s" % self.con.lastError().databaseText(),
-            )
-            return False
-        return True
+        return connection
 
-    def create_empty_bd(self):
-        if not os.path.isfile(self.db_file):
+    def create_empty_table(self):
 
-            print('creating new db')
+        create_users_table_query = """
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          face_image array,
+          face_encoding array
+        );
+        """
 
-            # Create the connection
-            con = QSqlDatabase.addDatabase("QSQLITE")
-            con.setDatabaseName(self.db_file)
+        self.execute_query(create_users_table_query)
 
-            # Open the connection
-            if not con.open():
-                print("Database Error: %s" % con.lastError().databaseText())
-                sys.exit(1)
+    def execute_query(self, query):
 
-            # Create a query and execute it right away using .exec()
-            createTableQuery = QSqlQuery()
-            createTableQuery.exec(
-                """
-                CREATE TABLE users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE NOT NULL,
-                    name VARCHAR(40) NOT NULL,
-                    face_image BLOB(13000),
-                    face_encoding BLOB(200)
-                )
-                """
-            )
+        cursor = self.connection.cursor()
 
-            con.close()
+        try:
+            cursor.execute(query)
+            self.connection.commit()
+            print("Query executed successfully")
+        except Error as e:
+            print(f"The error '{e}' occurred")
+            out = None
+
+        return out
+
+    def adapt_array(self, arr):
+        """
+        """
+        out = io.BytesIO()
+        np.save(out, arr)
+        out.seek(0)
+        return sqlite3.Binary(out.read())
+        # return out.read() ?
+
+    def convert_array(self, text):
+        out = io.BytesIO(text)
+        out.seek(0)
+        return np.load(out)
 
     def load_known_faces(self):
 
+        connection = self.create_connection(self.db_file)
+
+        cur = connection.cursor()
+
         self.known_face_encodings, self.known_face_metadata = [], []
 
-        query = QSqlQuery()
-        query.exec("SELECT name, face_image, face_encoding FROM users")
-        name_ind, face_image_ind, face_encoding_ind = range(3)
-
         try:
-            while query.next():
-                name, face_image, face_encoding = query.value(name_ind), query.value(face_image_ind), query.value(
-                    face_encoding_ind)
+            cur.execute("select name, face_image, face_encoding from users")
+            results = cur.fetchall()
 
-                face_image = self.convert_array(face_image).reshape(self.shape_face_image)
-                face_encoding = self.convert_array(face_encoding).reshape(self.shape_face_encoding)
-
-                # face_image = pickle.loads(face_image)
-                # face_encoding = pickle.loads(face_encoding)
-
-                #face_image = np.fromstring(face_image)
-                #face_encoding = np.fromstring(face_encoding)
-
-                print('loading:')
-                print(type(face_image))
-                print(type(face_encoding))
+            for individual_row in results:
+                name = individual_row[0]
+                face_image = individual_row[1]
+                face_encoding = individual_row[2]
 
                 self.known_face_encodings.append(face_encoding)
                 self.known_face_metadata.append({'userID': name, 'face_image': face_image})
 
-                # print(name, face_image, face_encoding)
-
-        except:
-            print("No previous face data found - starting with a blank known face list.")
+        except Error as e:
+            print(f"The error '{e}' occurred")
             self.known_face_encodings, self.known_face_metadata = [], []
 
-        query.finish()
+        cur.close()
+        connection.close()
+
         print("Face ID loaded from DB")
         print('N Users=%i' % len(self.known_face_metadata))
 
@@ -125,49 +130,34 @@ class DB_Qt_QSQLITE():
 
     def save_known_faces(self):
 
-        # face_data = [self.known_face_encodings, self.known_face_metadata]
-        # pickle.dump(face_data, face_data_file)
+        connection = self.create_connection(self.db_file)
 
-        # con = QSqlDatabase.addDatabase("QSQLITE")
-        # con.setDatabaseName(self.db_file)
-        # con.open()
+        cur = connection.cursor()
+
         new_face_encoding = self.known_face_encodings[-1]
         new_face_metadata = self.known_face_metadata[-1]
 
         new_name = new_face_metadata['userID']
         new_face_image = new_face_metadata['face_image']
 
-        #self.shape_face_image = new_face_image.shape
-        #self.shape_face_encoding = new_face_encoding.shape
+        # saving to db
+        try:
+            cur.execute("insert into users (name, face_image, face_encoding) values (?, ?, ?)",
+                        (str(new_name), new_face_image, new_face_encoding,))
 
-        #print('self.shape_face_image')
-        #print(self.shape_face_image)
+            connection.commit()
 
-        #print('self.shape_face_encoding')
-        #print(self.shape_face_encoding)
+        except Error as e:
+            print(f"The error '{e}' occurred")
 
-        # new_face_image = pickle.dumps(new_face_image)
-        # new_face_encoding = pickle.dumps(new_face_encoding)
-
-        #new_face_image = new_face_image.tostring()
-        #new_face_encoding = new_face_encoding.tostring()
-
-        new_face_image = self.adapt_array(new_face_image)
-        new_face_encoding = self.adapt_array(new_face_encoding)
+        cur.close()
+        connection.close()
 
         print('saving:')
         print(type(new_face_image))
+        print(len(new_face_image))
         print(type(new_face_encoding))
-
-        query = QSqlQuery(self.con)
-        query.exec(
-            f"""INSERT INTO users (name, face_image, face_encoding) 
-            VALUES ('{new_name}', '{new_face_image}', '{new_face_encoding}')"""
-        )
-
-        print("Face ID saved to file")
-
-        # con.close()
+        print(len(new_face_encoding))
 
     def register_new_face(self, new_face_encoding, new_face_image, userID):
         """
@@ -189,13 +179,8 @@ class DB_Qt_QSQLITE():
             "face_distance": 0,
         })
 
-    @staticmethod
-    def adapt_array(arr):
-        return arr.astype('float32').tobytes()
-
-    @staticmethod
-    def convert_array(text):
-        return np.frombuffer(text, dtype='float32')
+    def __del__(self):
+        self.connection.close()
 
 
 class DB_in_file():

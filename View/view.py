@@ -302,22 +302,21 @@ class VideoThread(QThread, SetSettings):
                             new_face = self.faces[0]
                             self.face_img2show = new_face.face_image
 
-                            try:
-                                NewUserID = len(self.mModel.known_face_metadata) + 1
-                                new_face_encodings = new_face.face_encoding
-                                print('new userID: %s' % NewUserID)
+                            print('face_img2show.shape:')
+                            print(self.face_img2show.shape)
 
-                                #print('--------------')
-                                #print(self.face_img2show)
-                                #print('--------------')
+                            #try:
+                            NewUserID = len(self.mModel.known_face_metadata) + 1
+                            new_face_encodings = new_face.face_encoding
+                            print('new userID: %s' % NewUserID)
 
-                                self.mModel.db_from_file.register_new_face(new_face_encodings, self.face_img2show,
+                            self.mModel.db_from_file.register_new_face(new_face_encodings, self.face_img2show,
                                                                            NewUserID)
 
-                                self.mModel.db_from_file.save_known_faces()
+                            self.mModel.db_from_file.save_known_faces()
 
-                            except:
-                                print('ERROR in module Register New Face')
+                            #except:
+                            #    print('ERROR in module Register New Face')
 
                             # emit face_quality_limit
                             self.emit_face_quality_limit.emit(face_quality_limit)
