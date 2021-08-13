@@ -78,7 +78,7 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
 
         self.upgrade_button()
         # sound_effects
-        self.sound_effects(self.mModel.state)
+        #self.sound_effects(self.mModel.state)
 
     ### text ###
     def init_text_on_screen_app(self, text):

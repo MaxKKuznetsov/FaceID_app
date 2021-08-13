@@ -7,13 +7,17 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QTableView,
+    QPushButton
 )
+
 
 class Users(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
+
         self.setWindowTitle("QTableView Example")
-        self.resize(600, 400)
+        self.resize(1200, 800)
+
         # Set up the model
         self.model = QSqlTableModel(self)
         self.model.setTable("users")
@@ -23,11 +27,13 @@ class Users(QMainWindow):
         self.model.setHeaderData(2, Qt.Horizontal, "face_image")
         self.model.setHeaderData(3, Qt.Horizontal, "face_encoding")
         self.model.select()
+
         # Set up the view
         self.view = QTableView()
         self.view.setModel(self.model)
         self.view.resizeColumnsToContents()
         self.setCentralWidget(self.view)
+
 
 def createConnection():
     con = QSqlDatabase.addDatabase("QSQLITE")
@@ -40,6 +46,7 @@ def createConnection():
         )
         return False
     return True
+
 
 def add_user():
     con = QSqlDatabase.addDatabase("QSQLITE")
