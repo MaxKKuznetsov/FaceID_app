@@ -7,7 +7,6 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QTableView,
-    QPushButton
 )
 
 

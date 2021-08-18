@@ -3,7 +3,7 @@ from PyQt5.QtSql import QSqlDatabase, QSqlQuery
 
 # Create the connection
 con = QSqlDatabase.addDatabase("QSQLITE")
-con.setDatabaseName("test_db.sqlite")
+con.setDatabaseName("test_db4dlib.sqlite")
 
 # Open the connection
 if not con.open():

@@ -8,33 +8,20 @@ from sqlite3 import Error
 
 import numpy as np
 
-from Utility.timer import elapsed_1arg, elapsed_2arg, elapsed_3arg
-
-import sys
-
-from PyQt5.QtCore import Qt
-from PyQt5.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
-from PyQt5.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QMessageBox,
-    QTableView,
-)
-
-
 class DB_Qt_QSQLITE():
     def __init__(self):
 
-        self.db_file = os.path.join('DB', 'sqlite3', 'test_db.sqlite')
+        self.db_file = os.path.join('DB', 'sqlite3', 'test_db4dlib.sqlite')
+        #self.db_file = os.path.join('DB', 'sqlite3', 'test_db.sqlite')
 
-        self.shape_face_image = (112, 112, 3)
-        self.shape_face_encoding = (192,)
+        #self.shape_face_image = (112, 112, 3)
+        #self.shape_face_encoding = (192,)
 
         print('connecting with DB %s' % self.db_file)
 
 
         # create table
-        # self.create_empty_table()
+        #self.create_empty_table()
 
         # Converts np.array to TEXT when inserting
         sqlite3.register_adapter(np.ndarray, self.adapt_array)

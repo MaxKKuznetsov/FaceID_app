@@ -1,27 +1,19 @@
 import cv2
 import numpy as np
 import os
-import sys
 import time
-import tensorflow as tf
 
 from PyQt5 import QtGui
-from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, QLabel, QVBoxLayout, \
-    QPushButton, QToolButton
+from PyQt5.QtWidgets import QMainWindow, QLabel, QPushButton
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread, QObject, QRect
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QThread
 
 from playsound import playsound
 
 from Utility.MainWinObserver import MainWinObserver
 from Utility.MainWinMeta import MainWinMeta
 
-from Model.facial_image_processing import FrameProcessing, Face
-# from Model.facial_image_processing import face_FaceRecognition2face_MTCNN
-# from Model.facial_image_processing import detect_face, face_FaceRecognition2face_MTCNN
-
-
-from Utility.timer import elapsed_1arg, elapsed_2arg, elapsed_3arg
+from Model.facial_image_processing import FrameProcessing
 
 
 class SetSettings:
@@ -31,7 +23,6 @@ class SetSettings:
 
     def __init__(self):
         self.screen_settings()
-        # self.saved_video_settings()
 
     def screen_settings(self):
         self.display_width, self.display_height = 640, 480
@@ -78,7 +69,7 @@ class View(QMainWindow, SetSettings, MainWinObserver, metaclass=MainWinMeta):
 
         self.upgrade_button()
         # sound_effects
-        #self.sound_effects(self.mModel.state)
+        # self.sound_effects(self.mModel.state)
 
     ### text ###
     def init_text_on_screen_app(self, text):
@@ -192,163 +183,104 @@ class VideoThread(QThread, SetSettings):
 
     def run(self):
 
-        ################## tf init ##################
-        with tf.Graph().as_default():
-            with tf.Session() as sess:
-                print("loading checkpoint ...")
+        # capture from web cam
+        cap = cv2.VideoCapture(0)
 
-                saver_meta_path = os.path.join('Model', 'models', 'mfn', 'mfn.ckpt.meta')
-                saver_restore_path = os.path.join('Model', 'models', 'mfn', 'mfn.ckpt')
+        self.frame_counter = -1
+        while True:
 
-                saver = tf.train.import_meta_graph(saver_meta_path)
-                saver.restore(sess, saver_restore_path)
+            start_time = time.time()
 
-                images_placeholder = tf.get_default_graph().get_tensor_by_name("input:0")
+            ret, cv_img_in = cap.read()
 
-                embeddings = tf.get_default_graph().get_tensor_by_name("embeddings:0")
+            # flip image!
+            cv_img_in = cv2.flip(cv_img_in, 1)
 
-                phase_train_placeholder = tf.get_default_graph().get_tensor_by_name("phase_train:0")
-                # embedding_size = embeddings.get_shape()[1]
+            if ret:
+                state = self.mModel.state
 
-                ################
+                self.frame_counter += 1
 
-                # capture from web cam
-                cap = cv2.VideoCapture(0)
+                ### Facial Image Processing
+                facal_processing = FrameProcessing(cv_img_in)
 
-                self.frame_counter = -1
-                while True:
+                # print('1')+
 
-                    start_time = time.time()
+                self.faces = facal_processing.detect_face_FaceRecognition_main()
+                # print('2')+
 
-                    ret, cv_img_in = cap.read()
+                ### Face identification
+                # if state == 'test':
+                if (state == 'FaceIdentificationMode') \
+                        or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
 
-                    # flip image!
-                    #self.frame = cv2.flip(self.frame, 1)
-                    cv_img_in = cv2.flip(cv_img_in, 1)
+                    # face_identification - FaceRecognition
+                    if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
+                        facal_processing.face_identification_FaceRecognition(self.mModel.known_face_encodings,
+                                                                             self.mModel.known_face_metadata)
 
-                    if ret:
-                        state = self.mModel.state
-                        # print(state)
+                        self.faces = facal_processing.faces
 
-                        self.frame_counter += 1
+                        for face in self.faces:
+                            if face.metadata:
+                                self.metadatas_out.emit(True)
+                                self.face_img2show = face.metadata['face_image']
 
-                        ### Facial Image Processing
-                        facal_processing = FrameProcessing(cv_img_in)
+                if (state == 'UserRegistrationMode') and self.timer > 1:
 
-                        # self.faces = facal_processing.detect_face_FaceRecognition_main()
-                        # self.faces = facal_processing.detect_face_MTCNN_main(self.mModel.detector_MTCNN)
-                        # self.faces = facal_processing.detect_face_dlib_main(self.mModel.dlib_shape_predictor,
-                        #                                                    self.mModel.dlib_face_recognition_model,
-                        #                                                    self.mModel.dlib_detector,
-                        #                                                    )
+                    facal_processing.frame_quality_aware()
+                    face_quality_limit = facal_processing.face_quality_limit()
 
-                        self.faces = facal_processing.detect_face_onnx_main(
-                            self.mModel.tf_model_for_embeddings.ort_session,
-                            self.mModel.tf_model_for_embeddings.input_name,
-                            self.mModel.tf_model_for_embeddings.face_aligner,
-                            images_placeholder,
-                            embeddings,
-                            phase_train_placeholder,
-                            sess
-                        )
+                else:
+                    face_quality_limit = False
 
-                        # for face in self.faces:
-                        #    print(face.size, face.face_size_flag)
+                if face_quality_limit and self.faces:
+                    new_face = self.faces[0]
+                    self.face_img2show = new_face.face_image
 
-                        #print(self.mModel.known_face_encodings)
-                        #print(self.mModel.known_face_metadata)
+                    # try:
+                    NewUserID = len(self.mModel.known_face_metadata) + 1
+                    new_face_encodings = new_face.face_encoding
+                    print('new userID: %s' % NewUserID)
 
-                        ### Face identification
-                        #if state == 'test':
-                        if (state == 'FaceIdentificationMode') \
-                                or (state == 'GreetingsMode') or (state == 'UserRegistrationMode'):
-                            '''
-                            # face_identification - FaceRecognition
-                            # if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                            #    facal_processing.face_identification_FaceRecognition(
-                            #        self.mModel.known_face_encodings, self.mModel.known_face_metadata)
-                            '''
+                    self.mModel.db_from_file.register_new_face(new_face_encodings, self.face_img2show,
+                                                               NewUserID)
 
-                            '''
-                            # face_identification - dlib
-                            # if self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                            #    facal_processing.face_identification_dlib(
-                            #        self.mModel.known_face_encodings, self.mModel.known_face_metadata)
-                            '''
+                    self.mModel.db_from_file.save_known_faces()
 
-                            # face_identification - onnx
-                            if self.faces and self.mModel.known_face_encodings and self.mModel.known_face_metadata:
-                                facal_processing.face_identification_onnx(self.mModel.known_face_encodings,
-                                                                          self.mModel.known_face_metadata)
+                    # except:
+                    #    print('ERROR in module Register New Face')
 
+                    # emit face_quality_limit
+                    self.emit_face_quality_limit.emit(face_quality_limit)
 
-                                self.faces = facal_processing.faces
+                fps = 1.0 / (time.time() - start_time)
+                #print("FPS: ", fps)  # FPS = 1 / time to process loop
 
-                                for face in self.faces:
-                                    if face.metadata:
-                                        self.metadatas_out.emit(True)
-                                        self.face_img2show = face.metadata['face_image']
+                ### Visualisation ###
+                screen = Srceen(cv_img_in, state, self.faces, self.timer, self.face_img2show, fps)
+                screen.frame_transfer()
 
-                        if (state == 'UserRegistrationMode') and self.timer > 1:
+                cv_img_out = screen.frame
 
-                            facal_processing.frame_quality_aware()
-                            face_quality_limit = facal_processing.face_quality_limit()
+                # emit frame to show
+                self.change_pixmap_signal.emit(cv_img_out)
 
-                        else:
-                            face_quality_limit = False
+                # timer
+                self.timer = self.mController.timer.return_time()
+                self.timer_time.emit(self.timer)
 
-                        if face_quality_limit and self.faces:
+                # emit fase size
+                # print(facal_processing.face_size_flag)
+                self.check_face_size.emit(facal_processing.face_size_flag)
 
-                            new_face = self.faces[0]
-                            self.face_img2show = new_face.face_image
+            else:
+                print("Can't receive frame (stream end?). Exiting ...")
+                break
 
-                            print('face_img2show.shape:')
-                            print(self.face_img2show.shape)
-
-                            #try:
-                            NewUserID = len(self.mModel.known_face_metadata) + 1
-                            new_face_encodings = new_face.face_encoding
-                            print('new userID: %s' % NewUserID)
-
-                            self.mModel.db_from_file.register_new_face(new_face_encodings, self.face_img2show,
-                                                                           NewUserID)
-
-                            self.mModel.db_from_file.save_known_faces()
-
-                            #except:
-                            #    print('ERROR in module Register New Face')
-
-                            # emit face_quality_limit
-                            self.emit_face_quality_limit.emit(face_quality_limit)
-
-                        fps = 1.0 / (time.time() - start_time)
-                        #print("FPS: ", fps)  # FPS = 1 / time to process loop
-                        ### Visualisation ###
-                        screen = Srceen(cv_img_in, state, self.faces, self.timer, self.face_img2show, fps)
-                        screen.frame_transfer()
-
-                        cv_img_out = screen.frame
-
-                        # emit frame to show
-                        self.change_pixmap_signal.emit(cv_img_out)
-
-                        # timer
-                        self.timer = self.mController.timer.return_time()
-                        self.timer_time.emit(self.timer)
-
-                        # emit fase size
-                        # print(facal_processing.face_size_flag)
-                        self.check_face_size.emit(facal_processing.face_size_flag)
-
-                    else:
-                        print("Can't receive frame (stream end?). Exiting ...")
-                        break
-
-
-
-                # shut down capture system
-                cap.release()
-                cv2.destroyAllWindows()
+        # shut down capture system
+        cap.release()
+        cv2.destroyAllWindows()
 
 
 class Srceen:
@@ -445,11 +377,10 @@ class Srceen:
         else:
             self.draw_faceboxes_ID(self.faces, (255, 0, 0))
 
-
     def draw_text(self, text, coord, color):
 
         # font
-        #font = cv2.FONT_HERSHEY_SIMPLEX
+        # font = cv2.FONT_HERSHEY_SIMPLEX
         font = cv2.FONT_HERSHEY_DUPLEX
         # org
         org = coord
@@ -496,7 +427,8 @@ class Srceen:
                 face_label = face.metadata['face_distance']
                 x, y, width, height = face.box
 
-                cv2.putText(self.frame, 'dist: %.2f' % face_label, (x + 6, y + height + 10), cv2.FONT_HERSHEY_DUPLEX, 0.3, (0, 0, 0), 1)
+                cv2.putText(self.frame, 'dist: %.2f' % face_label, (x + 6, y + height + 10), cv2.FONT_HERSHEY_DUPLEX,
+                            0.3, (0, 0, 0), 1)
 
             except:
                 self.draw_facebox(face, (255, 0, 0))
@@ -527,8 +459,8 @@ class Srceen:
         self.frame = cv2.rectangle(self.frame, start_point, end_point, box_color, thickness)
 
         # Draw a label with a name below the face
-        #cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
-        #cv2.putText(self.frame, 'ID: %s' % face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65,
+        # cv2.rectangle(self.frame, (x - 1, y + height + 35), (x + width + 1, y + height), box_color, cv2.FILLED)
+        # cv2.putText(self.frame, 'ID: %s' % face_label, (x + 6, y + height + 25), cv2.FONT_HERSHEY_DUPLEX, 0.65,
         #            (0, 0, 0), 1)
 
         text = 'ID: %s' % face_label
